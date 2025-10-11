@@ -1,0 +1,16 @@
+1. Installing correct Python version
+    Go to the official site:
+    https://www.python.org/downloads/release/python-3110/
+    Scroll down and download the Windows installer (64-bit).
+    Run the installer:
+    Check “Add Python 3.11 to PATH”
+
+Click Customize installation → Next → Install
+
+2. Setting up virtual environment
+    In bottom right of vs code find the python version
+    Click it and then select Create Virtual Environment
+    Select the 3.11 python version which you installed previously
+    Once installed, open terminal in your project directory (not in vs code) and run '.venv\Scripts\activate'
+    Then install all required packages 'pip install --upgrade pip
+                                        pip install mediapipe opencv-python onnxruntime numpy torch torchvision'
