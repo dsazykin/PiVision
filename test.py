@@ -13,7 +13,26 @@ print("Model inputs:", session.get_inputs())
 print("Model outputs:", session.get_outputs())
 
 # List of gesture class names (in same order as during training)
-classes = ["call", "dislike", "fist", "like", "mute", "ok", "peace", "palm", "rock", "stop", "three", "two_up", "two_up_inverted", "thumbs_down", "thumbs_up", "one", "smile", "grip_close"]
+classes = [
+    'train_val_call',
+    'train_val_dislike',
+    'train_val_fist',
+    'train_val_four',
+    'train_val_like',
+    'train_val_mute',
+    'train_val_ok',
+    'train_val_one',
+    'train_val_palm',
+    'train_val_peace',
+    'train_val_peace_inverted',
+    'train_val_rock',
+    'train_val_stop',
+    'train_val_stop_inverted',
+    'train_val_three',
+    'train_val_three2',
+    'train_val_two_up',
+    'train_val_two_up_inverted'
+]
 
 # Load and preprocess image
 img_path = "test_call.jpg"  # your local image
@@ -66,11 +85,22 @@ while True:
             img = np.transpose(img, (2,0,1))[np.newaxis, :].astype(np.float32)
 
             outputs = session.run(None, {input_name: img})
+
+            logits = outputs[0][0]                      # raw model outputs
+            probs = np.exp(logits) / np.sum(np.exp(logits))  # softmax
+            top3_idx = np.argsort(probs)[-3:][::-1]     # indices of top 3 classes
+            top3 = [(classes[i], probs[i]) for i in top3_idx]
+
             pred = np.argmax(outputs[0])
             label = classes[pred]
 
             mp_draw.draw_landmarks(frame, hand_landmarks, mp.solutions.hands.HAND_CONNECTIONS)
-            cv2.putText(frame, label, (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
+            y_text = y1 - 10
+            for i, (cls, p) in enumerate(top3):
+                text = f"{cls}: {p*100:.1f}%"
+                cv2.putText(frame, text, (x1, y_text - 25*i),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
+
 
     cv2.imshow("Gesture Detector + Classifier", frame)
     cv2.imshow("Cropped Hand", hand)
