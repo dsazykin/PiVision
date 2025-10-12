@@ -6,7 +6,7 @@ import torchvision.transforms as T
 import mediapipe as mp
 
 # Create inference session
-session = ort.InferenceSession("gesture_model_ddp_best.onnx", providers=["CPUExecutionProvider"])
+session = ort.InferenceSession("models/gesture_model_v3.onnx", providers=["CPUExecutionProvider"])
 
 # Print input/output details
 print("Model inputs:", session.get_inputs())
