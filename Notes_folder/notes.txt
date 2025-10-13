@@ -1,0 +1,54 @@
+"""
+Logging in would be only for the preset of mappings.
+Controlling the computer is possible from all accounts.
+Mappings would have a "default".
+Once logged in, the user can use gestures to control the pc.
+"""
+Logging in:
+
+- gestures for logging in.
+    - "chained" gestures for password (access to the Pi functionality, not the pc)
+    - max of 3 gestures per password (as of right now, might be more in the future)
+    - the model should not recognize the gestures twice.
+    - maybe a cooldown between recognition (3 secs?) 
+    - feedback loop to acknowledge a gesture has been recognized / password is correct.
+
+- Help menu for logging in (?)
+    - what gestures can be recognized
+    - password "rules"
+
+Database design
+
+-User table
+    - user_id PK
+    - user_name
+    - user_password
+    - role (user, admin)
+
+-Gesture mapping table
+    - gesture_ID PK
+    - user_id 
+    - gesture_name
+    - mapped_action 
+    
+
+
+List of all gestures the model can recognize and their default value:
+call                Esc.
+dislike             Scroll down
+fist                Delete
+four                Tab
+like                Scroll up
+mute                toggle sound on/off
+ok                  Enter
+One                 left_click
+palm                space
+peace               windows key
+peace_inverted      Alt
+rock                w
+stop                mouse_up (cursor movement up)
+stop_inverted       mouse_down (cursor movement down)
+three               mouse_right (cursor movement to the right)
+three2              mouse_left (cursor movement to the left)
+two_up              right_click
+two_up_inverted     Ctrl
