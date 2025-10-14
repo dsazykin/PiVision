@@ -37,8 +37,8 @@ classes = [
     'twoupinverted'
 ]
 
-base_dir = Path("ModelTest/TestImages")
-print(base_dir)
+base_dir = Path(script_dir).parent / "ModelTest" / "TestImages"
+print("Looking in:", base_dir.resolve())
 
 total = 0
 correct = 0
