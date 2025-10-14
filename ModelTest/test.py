@@ -54,13 +54,18 @@ pred_idx = np.argmax(outputs[0])
 print("Predicted gesture:", classes[pred_idx])
 
 cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_FPS, 10)
+cap.set(cv2.CAP_PROP_FPS, 25)
 mp_hands = mp.solutions.hands.Hands(
     max_num_hands=1, min_detection_confidence=0.5, min_tracking_confidence=0.5)
 mp_draw = mp.solutions.drawing_utils
 
 # frame_count = 0
 # PROCESS_EVERY = 10
+
+previous_gesture = ""
+gesture_count = 0
+minimum_hold = 25
+hold_gesture = False
 
 while True:
     ret, frame = cap.read()
@@ -76,19 +81,9 @@ while True:
 
     if results.multi_hand_landmarks:
         for hand_landmarks in results.multi_hand_landmarks:
-            h, w, _ = frame.shape
-            xs = [int(p.x * w) for p in hand_landmarks.landmark]
-            ys = [int(p.y * h) for p in hand_landmarks.landmark]
-            margin = 30
-            x1 = max(min(xs)-margin, 0)
-            y1 = max(min(ys)-margin, 0)
-            x2 = min(max(xs)+margin, w)
-            y2 = min(max(ys)+margin, h)
-            hand_img = frame[y1:y2, x1:x2]
 
             # Preprocess for model
-            hand = cv2.cvtColor(hand_img, cv2.COLOR_BGR2RGB)
-            img = cv2.resize(hand_img, (224,224))
+            img = cv2.resize(frame, (224,224))
             img = img.astype(np.float32) / 255.0
             img = (img - [0.485,0.456,0.406]) / [0.229,0.224,0.225]
             img = np.transpose(img, (2,0,1))[np.newaxis, :].astype(np.float32)
@@ -103,16 +98,21 @@ while True:
             pred = np.argmax(outputs[0])
             label = classes[pred]
 
-            mp_draw.draw_landmarks(frame, hand_landmarks, mp.solutions.hands.HAND_CONNECTIONS)
-            y_text = y1 - 10
-            for i, (cls, p) in enumerate(top3):
-                text = f"{cls}: {p*100:.1f}%"
-                cv2.putText(frame, text, (x1, y_text - 25*i),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
+            if(gesture_count == minimum_hold or hold_gesture):
+                    hold_gesture = True
+                    gesture_count = 0
+                    print("Detected Gesture: " + label)
+            elif(label == previous_gesture):
+                gesture_count += 1
 
+            if(label != previous_gesture):
+                hold_gesture = False
+                previous_gesture = label
+                gesture_count = 0
+
+            mp_draw.draw_landmarks(frame, hand_landmarks, mp.solutions.hands.HAND_CONNECTIONS)
 
     cv2.imshow("Gesture Detector + Classifier", frame)
-    cv2.imshow("Cropped Hand", hand)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
