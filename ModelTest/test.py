@@ -34,24 +34,8 @@ classes = [
     'train_val_two_up_inverted'
 ]
 
-# Load and preprocess image
-img_path = "test_call.jpg"  # your local image
-img = Image.open(img_path).convert("RGB")
-
-transform = T.Compose([
-    T.Resize((224, 224)),
-    T.ToTensor(),
-    T.Normalize([0.485, 0.456, 0.406],
-                [0.229, 0.224, 0.225])
-])
-
-x = transform(img).unsqueeze(0).numpy()
-
 # Run inference
 input_name = session.get_inputs()[0].name
-outputs = session.run(None, {input_name: x})
-pred_idx = np.argmax(outputs[0])
-print("Predicted gesture:", classes[pred_idx])
 
 cap = cv2.VideoCapture(0)
 cap.set(cv2.CAP_PROP_FPS, 25)
