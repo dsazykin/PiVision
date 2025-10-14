@@ -133,3 +133,22 @@ def get_all_users():
         cursor = conn.cursor()
         cursor.execute("SELECT user_name, role FROM users")
         return cursor.fetchall()
+
+def delete_user(user_name):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # Delete gesture mappings in the gesture mappings table first
+        cursor.execute("""
+        DELETE FROM gesture_mappings
+        WHERE user_id = (
+            SELECT user_id FROM users WHERE user_name = ?
+        )
+        """, (user_name,))
+
+        # Delete the user itself
+        cursor.execute("DELETE FROM users WHERE user_name = ?", (user_name,))
+        deletedRows = cursor.rowcount
+
+        conn.commit()
+        return deletedRows
