@@ -64,14 +64,31 @@ def signup():
     """
     return html
 
-@app.route("/delete/<username>")
-def delUser(username):
-    deleted = database.delete_user(username)
+@app.route("/delete", methods = ["GET", "POST"])
+def delUser():
     html = "<h1> User Deletion page</h1>"
-    if deleted == 0:
-        html += "<p style='color:red;'> No user named: \"" + username + "\" was not found</p>"
-    else:
-        html += "<p style='color:green;'> Succesfully deleted user " + username + ".</p>"
+    if request.method == "POST":
+        # Read data from the form
+        username = request.form.get("username")
+        try:
+            deleted = database.delete_user(username)
+            if deleted == 0:
+                return f"<h1> Deletion Failed</h1><br/><p style='color:red;'> Deletion of user '{username}' was not succesfull</p>"
+            else:
+                return f"<h1> Deletion Successful</h1><p style='color:green;'>User '{username}' has been deleted.</p>"
+        except ValueError as e:
+            # Handle 'user already exists'
+            return f"<h1>Error</h1><p>{str(e)}</p>"
+        except Exception as e:
+            return f"<h1>Unexpected Error</h1><p>{str(e)}</p>"
+    
+    html += """
+        <form method="POST">
+            <label>Username to be deleted:</label><br>
+            <input type="text" name="username" required><br><br>
+            <input type="submit" value="DELETE">
+        </form>
+    """
     return html
     
 
