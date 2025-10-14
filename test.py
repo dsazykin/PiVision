@@ -54,14 +54,23 @@ pred_idx = np.argmax(outputs[0])
 print("Predicted gesture:", classes[pred_idx])
 
 cap = cv2.VideoCapture(0)
+cap.set(cv2.CAP_PROP_FPS, 10)
 mp_hands = mp.solutions.hands.Hands(
     max_num_hands=1, min_detection_confidence=0.5, min_tracking_confidence=0.5)
 mp_draw = mp.solutions.drawing_utils
+
+# frame_count = 0
+# PROCESS_EVERY = 10
 
 while True:
     ret, frame = cap.read()
     if not ret:
         break
+
+    # frame_count += 1
+    # if frame_count % PROCESS_EVERY != 0:
+    #     continue
+
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = mp_hands.process(rgb)
 
