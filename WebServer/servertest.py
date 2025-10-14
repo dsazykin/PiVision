@@ -1,18 +1,107 @@
+from flask import Flask, request, redirect, url_for, Response
 import database
+import recognition
+import threading
 
-from flask import Flask, request, redirect
 app = Flask(__name__)
+
+@app.after_request
+def add_global_css(response: Response):
+    # Only modify HTML responses
+    if response.content_type == "text/html; charset=utf-8":
+        css_link = f'<link rel="stylesheet" type="text/css" href="{url_for("static", filename="style.css")}">'
+        # Inject right after <head> if present, else at start
+        html = response.get_data(as_text=True)
+        if "<head>" in html:
+            html = html.replace("<head>", f"<head>{css_link}")
+        else:
+            html = css_link + html
+        response.set_data(html)
+    return response
 
 @app.route("/")
 def index():
-    return "<h1>Hello from Pi!</h1><p>This page is served by Flask on your Raspberry Pi 5.</p>"
+    return """
+        <h1>Welcome to the Gesture Control Web App</h1>
+        <p>This web interface lets you manage users and start gesture recognition.</p>
+        <a href="/login"><button>Login</button></a>
+        <a href="/signup"><button>Sign Up</button></a>
+    """
 
-@app.route("/main")
-def init():
-    database.initialize_database()
-    html = "<h1>Database intitialization page</h1>"
-    html += "<p style='color:green;'> Database correctly initialized.</p>"
+
+# --- LOGIN PAGE ---
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
+
+        if database.verify_user(username, password):
+            return redirect(url_for("main_page", username=username))
+        else:
+            return """
+                <h1>Login Failed</h1>
+                <p style='color:red;'>Invalid username or password.</p>
+                <a href='/login'>Try again</a>
+            """
+    return """
+        <h1>Login</h1>
+        <form method="POST">
+            <label>Username:</label><br>
+            <input type="text" name="username" required><br><br>
+            <label>Password:</label><br>
+            <input type="password" name="password" required><br><br>
+            <input type="submit" value="Login">
+        </form>
+        <br><a href="/signup">Don't have an account? Sign up here</a>
+    """
+
+@app.route("/logout")
+def logout():
+    return redirect(url_for("index"))
+
+@app.route("/main/<username>")
+def main_page(username):
+    return f"""
+        <h1>Welcome, {username}</h1>
+        <p>Choose an action:</p>
+        <a href="/start/{username}"><button>Start Recognition</button></a><br><br>
+        <a href="/mappings/{username}"><button>Edit Gesture Mappings</button></a><br><br>
+        <a href="/delete/{username}"><button style='color:red;'>Delete My Account</button></a><br><br>
+        <a href="/logout"><button>Log Out</button></a>
+    """
+
+@app.route("/start/<username>")
+def start_recognition(username):
+    # Run recognition in a background thread (so Flask stays responsive)
+    t = threading.Thread(target=recognition.run_recognition, args=(username,))
+    t.start()
+
+    return f"<h1>Gesture recognition started for {username}</h1><p>Check console for live output. Press 'q' in the window to stop.</p>"
+
+@app.route("/mappings/<username>", methods=["GET", "POST"])
+def mappings(username):
+    if request.method == "POST":
+        gesture = request.form.get("gesture")
+        new_action = request.form.get("action")
+        database.update_gesture_mapping(username, gesture, new_action)
+        return redirect(url_for("mappings", username=username))
+
+    mappings = database.get_user_mappings(username)
+
+    html = f"<h1>Gesture Mappings for {username}</h1>"
+    html += "<form method='POST'>"
+    for gesture, action in mappings.items():
+        html += f"""
+        <label>{gesture}:</label>
+        <input type='text' name='action' value='{action}' required>
+        <input type='hidden' name='gesture' value='{gesture}'>
+        <input type='submit' value='Update'><br><br>
+        """
+    html += "</form>"
+    html += f"<br><a href='/start/{username}'>Start Recognition</a>"
     return html
+
     
 @app.route("/database")
 def showDatabase():
@@ -36,60 +125,44 @@ def showDatabase():
 
     return html
 
-@app.route("/signup", methods = ["GET", "POST"])
+@app.route("/signup", methods=["GET", "POST"])
 def signup():
-    html = "<h1> Signup Page</h1>"
     if request.method == "POST":
-        # Read data from the form
         username = request.form.get("username")
         password = request.form.get("password")
 
         try:
             database.add_user(user_name=username, user_password=password)
-            return f"<h1>Signup Successful</h1><p>User '{username}' has been created.</p>"
+            return f"""
+                <h1>Signup Successful</h1>
+                <p>User '{username}' created successfully.</p>
+                <a href="/login"><button>Go to Login</button></a>
+            """
         except ValueError as e:
-            # Handle 'user already exists'
-            return f"<h1>Error</h1><p>{str(e)}</p>"
+            return f"<h1>Error</h1><p>{str(e)}</p><a href='/signup'>Try Again</a>"
         except Exception as e:
             return f"<h1>Unexpected Error</h1><p>{str(e)}</p>"
-    
-    html += """
+
+    return """
+        <h1>Sign Up</h1>
         <form method="POST">
             <label>Username:</label><br>
             <input type="text" name="username" required><br><br>
             <label>Password:</label><br>
             <input type="password" name="password" required><br><br>
-            <input type="submit" value="Sign Up">
+            <input type="submit" value="Create Account">
         </form>
+        <br><a href="/login">Already have an account? Login here</a>
     """
-    return html
 
-@app.route("/delete", methods = ["GET", "POST"])
-def delUser():
-    html = "<h1> User Deletion page</h1>"
-    if request.method == "POST":
-        # Read data from the form
-        username = request.form.get("username")
-        try:
-            deleted = database.delete_user(username)
-            if deleted == 0:
-                return f"<h1> Deletion Failed</h1><br/><p style='color:red;'> Deletion of user '{username}' was not succesfull</p>"
-            else:
-                return f"<h1> Deletion Successful</h1><p style='color:green;'>User '{username}' has been deleted.</p>"
-        except ValueError as e:
-            # Handle 'user already exists'
-            return f"<h1>Error</h1><p>{str(e)}</p>"
-        except Exception as e:
-            return f"<h1>Unexpected Error</h1><p>{str(e)}</p>"
-    
-    html += """
-        <form method="POST">
-            <label>Username to be deleted:</label><br>
-            <input type="text" name="username" required><br><br>
-            <input type="submit" value="DELETE">
-        </form>
-    """
-    return html
+
+@app.route("/delete/<username>")
+def delete_user(username):
+    deleted = database.delete_user(username)
+    if deleted == 0:
+        return f"<h1>Deletion Failed</h1><p style='color:red;'>User '{username}' not found.</p>"
+    return f"<h1>Account Deleted</h1><p>User '{username}' has been removed.</p><a href='/'>Return Home</a>"
+
     
 
 app.run(host="0.0.0.0", port=5000)

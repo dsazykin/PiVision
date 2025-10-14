@@ -93,24 +93,15 @@ def add_user(user_name, user_password, role="user"):
 
 
 
-def add_or_update_mapping(user_name, gesture_name, mapped_action):
-    """Update a specific gesture mapping for a user."""
+def update_gesture_mapping(username, gesture_name, new_action):
     with get_connection() as conn:
         cursor = conn.cursor()
-        # Get user_id
-        cursor.execute("SELECT user_id FROM users WHERE user_name = ?", (user_name,))
-        row = cursor.fetchone()
-        if not row:
-            raise ValueError(f"User '{user_name}' not found.")
-        user_id = row[0]
-
-        # Insert or update mapping
         cursor.execute("""
-        INSERT INTO gesture_mappings (user_id, gesture_name, mapped_action)
-        VALUES (?, ?, ?)
-        ON CONFLICT(user_id, gesture_name)
-        DO UPDATE SET mapped_action = excluded.mapped_action
-        """, (user_id, gesture_name, mapped_action))
+            UPDATE gesture_mappings
+            SET mapped_action = ?
+            WHERE gesture_name = ?
+              AND user_id = (SELECT user_id FROM users WHERE user_name = ?)
+        """, (new_action, gesture_name, username))
         conn.commit()
 
 
@@ -152,3 +143,10 @@ def delete_user(user_name):
 
         conn.commit()
         return deletedRows
+    
+def verify_user(username, password):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id FROM users WHERE user_name=? AND user_password=?", (username, password))
+        return cursor.fetchone() is not None
+
