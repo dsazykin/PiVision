@@ -4,9 +4,13 @@ import numpy as np
 from PIL import Image
 import torchvision.transforms as T
 import mediapipe as mp
+import os
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+model_path = os.path.join(script_dir, "..", "models", "gesture_model_v3.onnx")
 
 # Create inference session
-session = ort.InferenceSession("models/gesture_model_v3.onnx", providers=["CPUExecutionProvider"])
+session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
 
 # Print input/output details
 print("Model inputs:", session.get_inputs())
@@ -43,12 +47,12 @@ mp_hands = mp.solutions.hands.Hands(
     max_num_hands=1, min_detection_confidence=0.5, min_tracking_confidence=0.5)
 mp_draw = mp.solutions.drawing_utils
 
-# frame_count = 0
-# PROCESS_EVERY = 10
+frame_count = 0
+PROCESS_EVERY = 10
 
 previous_gesture = ""
 gesture_count = 0
-minimum_hold = 25
+minimum_hold = 10
 hold_gesture = False
 
 while True:
@@ -56,9 +60,9 @@ while True:
     if not ret:
         break
 
-    # frame_count += 1
-    # if frame_count % PROCESS_EVERY != 0:
-    #     continue
+    frame_count += 1
+    if frame_count % PROCESS_EVERY != 0:
+        continue
 
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = mp_hands.process(rgb)
@@ -82,17 +86,17 @@ while True:
             pred = np.argmax(outputs[0])
             label = classes[pred]
 
+            if(label != previous_gesture):
+                hold_gesture = False
+                previous_gesture = label
+                gesture_count = 0
+
             if(gesture_count == minimum_hold or hold_gesture):
                     hold_gesture = True
                     gesture_count = 0
                     print("Detected Gesture: " + label)
             elif(label == previous_gesture):
                 gesture_count += 1
-
-            if(label != previous_gesture):
-                hold_gesture = False
-                previous_gesture = label
-                gesture_count = 0
 
             mp_draw.draw_landmarks(frame, hand_landmarks, mp.solutions.hands.HAND_CONNECTIONS)
 
