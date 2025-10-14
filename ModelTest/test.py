@@ -4,9 +4,13 @@ import numpy as np
 from PIL import Image
 import torchvision.transforms as T
 import mediapipe as mp
+import os
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+model_path = os.path.join(script_dir, "..", "models", "gesture_model_v3.onnx")
 
 # Create inference session
-session = ort.InferenceSession("models/gesture_model_v3.onnx", providers=["CPUExecutionProvider"])
+session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
 
 # Print input/output details
 print("Model inputs:", session.get_inputs())
