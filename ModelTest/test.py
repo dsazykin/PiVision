@@ -108,6 +108,14 @@ while True:
 
             mp_draw.draw_landmarks(frame, hand_landmarks, mp.solutions.hands.HAND_CONNECTIONS)
 
+            y0, dy = 40, 30
+            for rank, (cls, prob) in enumerate(top3):
+                text = f"{rank+1}. {cls}: {prob*100:.1f}%"
+                y = y0 + rank * dy
+                cv2.putText(frame, text, (10, y),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
+
+
     cv2.imwrite(FRAME_PATH, frame)
 
     try:

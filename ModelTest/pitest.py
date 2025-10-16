@@ -7,6 +7,9 @@ from PIL import Image
 import torchvision.transforms as T
 import mediapipe as mp
 
+FRAME_PATH = r"C:/Users/paulm/Desktop/Uni/Year_2/Mod_1/project/temp/latest.jpg"
+JSON_PATH = r"C:/Users/paulm/Desktop/Uni/Year_2/Mod_1/project/temp/latest.json"
+
 script_dir = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(script_dir, "..", "models", "gesture_model_v3.onnx")
 
@@ -49,7 +52,7 @@ mp_hands = mp.solutions.hands.Hands(
 mp_draw = mp.solutions.drawing_utils
 
 frame_count = 0
-PROCESS_EVERY = 10
+PROCESS_EVERY = 2
 
 previous_gesture = ""
 gesture_count = 0
@@ -58,6 +61,8 @@ hold_gesture = False
 
 try:
     while True:
+        data = {"gesture": "None", "confidence": 0.0}
+
         ret, frame = cap.read()
         if not ret:
             break
@@ -97,10 +102,28 @@ try:
                         hold_gesture = True
                         gesture_count = 0
                         print("Detected Gesture: " + label)
+                        data = {"gesture": label, "confidence": float(top3[0][1])}
                 elif(label == previous_gesture):
                     gesture_count += 1
 
                 mp_draw.draw_landmarks(frame, hand_landmarks, mp.solutions.hands.HAND_CONNECTIONS)
+
+                y0, dy = 40, 30
+                for rank, (cls, prob) in enumerate(top3):
+                    text = f"{rank+1}. {cls}: {prob*100:.1f}%"
+                    y = y0 + rank * dy
+                    cv2.putText(frame, text, (10, y),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
+                    
+        cv2.imwrite(FRAME_PATH, frame)
+
+        try:
+            with open(JSON_PATH, 'w')as f:
+                json.dump(data, f)
+        except Exception as e:
+            print("Error writing JSON: ", e)
+
+        time.sleep(0.05)
 
 except KeyboardInterrupt:
     print("\nStopped by user.")
