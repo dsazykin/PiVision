@@ -9,8 +9,8 @@ import mediapipe as mp
 import time
 import json
 
-FRAME_PATH = r"C:/Users/paulm/Desktop/Uni/Year_2/Mod_1/project/temp/latest.jpg"
-JSON_PATH = r"C:/Users/paulm/Desktop/Uni/Year_2/Mod_1/project/temp/latest.json"
+FRAME_PATH = r"/home/group31/Projects/project/temp/latest.jpg"
+JSON_PATH = r"/home/group31/Projects/project/temp/latest.json"
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(script_dir, "..", "models", "gesture_model_v3.onnx")
