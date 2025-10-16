@@ -1,5 +1,5 @@
 from flask import Flask, request, redirect, url_for, Response, jsonify, render_template_string
-import database, recognition, threading, json, os, cv2, time
+import database, threading, json, os, cv2, time
 
 app = Flask(__name__)
 
@@ -126,14 +126,6 @@ def main_page(username):
         <a href="/delete/{username}"><button style='color:red;'>Delete My Account</button></a><br><br>
         <a href="/logout"><button>Log Out</button></a>
     """
-
-@app.route("/start/<username>")
-def start_recognition(username):
-    # Run recognition in a background thread (so Flask stays responsive)
-    t = threading.Thread(target=recognition.run_recognition, args=(username,))
-    t.start()
-
-    return f"<h1>Gesture recognition started for {username}</h1><p>Check console for live output. Press 'q' in the window to stop.</p>"
 
 @app.route("/mappings/<username>", methods=["GET", "POST"])
 def mappings(username):
