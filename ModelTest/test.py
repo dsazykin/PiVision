@@ -6,6 +6,10 @@ import torchvision.transforms as T
 import mediapipe as mp
 import os
 import time
+import json
+
+FRAME_PATH = r"C:/Users/paulm/Desktop/Uni/Year_2/Mod_1/project/temp/latest.jpg"
+JSON_PATH = r"C:/Users/paulm/Desktop/Uni/Year_2/Mod_1/project/temp/latest.json"
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(script_dir, "..", "models", "gesture_model_v3.onnx")
@@ -57,6 +61,8 @@ minimum_hold = 10
 hold_gesture = False
 
 while True:
+    data = {"gesture": "None", "confidence": 0.0}
+
     ret, frame = cap.read()
     if not ret:
         break
@@ -96,12 +102,20 @@ while True:
                     hold_gesture = True
                     gesture_count = 0
                     print("Detected Gesture: " + label)
+                    data = {"gesture": label, "confidence": float(top3[0][1])}
             elif(label == previous_gesture):
                 gesture_count += 1
 
             mp_draw.draw_landmarks(frame, hand_landmarks, mp.solutions.hands.HAND_CONNECTIONS)
 
-    cv2.imwrite("C:/Users/paulm/Desktop/Uni/Year_2/Mod_1/project/temp/latest.jpg", frame)
+    cv2.imwrite(FRAME_PATH, frame)
+
+    try:
+        with open(JSON_PATH, 'w')as f:
+            json.dump(data, f)
+    except Exception as e:
+        print("Error writing JSON: ", e)
+
     time.sleep(0.05)
 
     cv2.imshow("Gesture Detector + Classifier", frame)
