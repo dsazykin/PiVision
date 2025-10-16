@@ -1,9 +1,10 @@
-from flask import Flask, request, redirect, url_for, Response
-import database
-import recognition
-import threading
+from flask import Flask, request, redirect, url_for, Response, jsonify, render_template_string
+import database, recognition, threading, json, os, cv2, time
 
 app = Flask(__name__)
+
+FRAME_PATH = r"C:/Users/paulm/Desktop/Uni/Year_2/Mod_1/project/temp/latest.jpg"
+JSON_PATH = r"C:/Users/paulm/Desktop/Uni/Year_2/Mod_1/project/temp/latest.json"
 
 @app.after_request
 def add_global_css(response: Response):
@@ -21,6 +22,7 @@ def add_global_css(response: Response):
 
 @app.route("/")
 def index():
+    database.initialize_database()
     return """
         <h1>Welcome to the Gesture Control Web App</h1>
         <p>This web interface lets you manage users and start gesture recognition.</p>
@@ -59,6 +61,60 @@ def login():
 @app.route("/logout")
 def logout():
     return redirect(url_for("index"))
+
+@app.route("/testing")
+def test():
+    html = """
+    <html><head><title>Pi Vision Gestures</title>
+    <script>
+    async function updateGesture(){
+        const res = await fetch('/gesture');
+        const data = await res.json();
+        document.getElementById('g').innerText = data.gesture;
+        document.getElementById('c').innerText = (data.confidence*100).toFixed(1)+'%';
+    }
+    setInterval(updateGesture,500); window.onload=updateGesture;
+    </script></head>
+    <body style="text-align:center;font-family:sans-serif;margin-top:40px">
+      <h1 id="g">Loading...</h1>
+      <p>Confidence: <span id="c">--%</span></p>
+      <a href="/video">View Live Stream ▶</a>
+    </body></html>"""
+    return render_template_string(html)
+
+@app.route('/gesture')
+def gesture():
+    try:
+        with open(JSON_PATH) as f:
+            data = json.load(f)
+    except Exception:
+        data = {"gesture": "None", "confidence": 0.0}
+    return jsonify(data)
+def gen():
+    while True:
+        try:
+            frame = cv2.imread(FRAME_PATH)
+            if frame is None:
+                time.sleep(0.05)
+                continue
+            _, jpeg = cv2.imencode('.jpg', frame)
+            yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' +
+                   jpeg.tobytes() + b'\r\n')
+        except Exception:
+            time.sleep(0.05)
+
+
+@app.route('/stream')
+def stream():
+    return Response(gen(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/video')
+def video():
+    return """<html><body style="text-align:center">
+              <h2>Processed Gesture Feed</h2>
+              <img src="/stream" width="640" height="480">
+              <br><a href="/">Back</a>
+              </body></html>"""
 
 @app.route("/main/<username>")
 def main_page(username):
@@ -116,13 +172,14 @@ def showDatabase():
         })
 
     # Build HTML
-    html = "<h1>Database Page</h1>"
+    html = "<h1>Database Page</h1><div class='db_container_div'>"
     for user in databaseinfo:
+        html += "<div class='db_entry_div'>"
         html += f"<h2>User: {user['user_name']} (Role: {user['role']})</h2><ul>"
         for gesture, action in user['mappings'].items():
             html += f"<li>{gesture}: {action}</li>"
-        html += "</ul>"
-
+        html += "</ul></div>" # ul + entry divs
+    html += "</div>" # container div
     return html
 
 @app.route("/signup", methods=["GET", "POST"])
@@ -165,4 +222,4 @@ def delete_user(username):
 
     
 
-app.run(host="0.0.0.0", port=5000)
+app.run(host="0.0.0.0", port=5000, threaded = True)

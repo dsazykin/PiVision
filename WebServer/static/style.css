@@ -10,7 +10,7 @@ h1 {
 }
 
 button {
-    background-color: #4CAF50;
+    background-color: #03e7fc;
     color: white;
     border: none;
     padding: 10px 20px;
@@ -21,7 +21,7 @@ button {
 }
 
 button:hover {
-    background-color: #45a049;
+    background-color: #03b5fc;
 }
 
 input[type="text"], input[type="password"] {
@@ -30,4 +30,20 @@ input[type="text"], input[type="password"] {
     width: 200px;
     border-radius: 4px;
     border: 1px solid #ccc;
+}
+
+.db_container_div {
+    display: flex;
+    flex-wrap: wrap;
+    background-color: pink;
+    justify-content: space-evenly, flex-start;
+}
+
+.db_entry_div {
+    width: 30%;
+    min-width: 200px;
+    padding: 10px;
+    margin: 8px;
+    border-radius: 4px;
+    background-color: #b8b8b8;
 }
