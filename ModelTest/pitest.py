@@ -6,6 +6,8 @@ import numpy as np
 from PIL import Image
 import torchvision.transforms as T
 import mediapipe as mp
+import time
+import json
 
 FRAME_PATH = r"C:/Users/paulm/Desktop/Uni/Year_2/Mod_1/project/temp/latest.jpg"
 JSON_PATH = r"C:/Users/paulm/Desktop/Uni/Year_2/Mod_1/project/temp/latest.json"
