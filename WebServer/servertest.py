@@ -3,8 +3,14 @@ import database, threading, json, os, cv2, time
 
 app = Flask(__name__)
 
-FRAME_PATH = r"C:/Users/paulm/Desktop/Uni/Year_2/Mod_1/project/temp/latest.jpg"
-JSON_PATH = r"C:/Users/paulm/Desktop/Uni/Year_2/Mod_1/project/temp/latest.json"
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(script_dir, ".."))
+
+temp_dir = os.path.join(project_root, "WebServerStream")
+os.makedirs(temp_dir, exist_ok=True)
+
+FRAME_PATH = os.path.join(temp_dir, "latest.jpg")
+JSON_PATH = os.path.join(temp_dir, "latest.json")
 
 @app.after_request
 def add_global_css(response: Response):

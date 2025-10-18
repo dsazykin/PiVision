@@ -1,12 +1,23 @@
 import cv2
 import onnxruntime as ort
 import numpy as np
-from PIL import Image
 import torchvision.transforms as T
 import mediapipe as mp
+import os
+import time
+import json
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(script_dir, ".."))
+
+temp_dir = os.path.join(project_root, "WebServerStream")
+os.makedirs(temp_dir, exist_ok=True)
+
+FRAME_PATH = os.path.join(temp_dir, "latest.jpg")
+JSON_PATH = os.path.join(temp_dir, "latest.json")
 
 # Create inference session
-session = ort.InferenceSession("models/gesture_model_v4_handcrop.onnx", providers=["CPUExecutionProvider"])
+session = ort.InferenceSession("Models/gesture_model_v4_handcrop.onnx", providers=["CPUExecutionProvider"])
 
 # Print input/output details
 print("Model inputs:", session.get_inputs())
@@ -34,27 +45,11 @@ classes = [
     'train_val_two_up_inverted'
 ]
 
-# Load and preprocess image
-img_path = "test_call.jpg"  # your local image
-img = Image.open(img_path).convert("RGB")
-
-transform = T.Compose([
-    T.Resize((224, 224)),
-    T.ToTensor(),
-    T.Normalize([0.485, 0.456, 0.406],
-                [0.229, 0.224, 0.225])
-])
-
-x = transform(img).unsqueeze(0).numpy()
-
 # Run inference
 input_name = session.get_inputs()[0].name
-outputs = session.run(None, {input_name: x})
-pred_idx = np.argmax(outputs[0])
-print("Predicted gesture:", classes[pred_idx])
 
 cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_FPS, 10)
+cap.set(cv2.CAP_PROP_FPS, 30)
 mp_hands = mp.solutions.hands.Hands(
     max_num_hands=1, min_detection_confidence=0.5, min_tracking_confidence=0.5)
 mp_draw = mp.solutions.drawing_utils
@@ -62,7 +57,14 @@ mp_draw = mp.solutions.drawing_utils
 # frame_count = 0
 # PROCESS_EVERY = 10
 
+previous_gesture = ""
+gesture_count = 0
+minimum_hold = 10
+hold_gesture = False
+
 while True:
+    data = {"gesture": "None", "confidence": 0.0}
+
     ret, frame = cap.read()
     if not ret:
         break
@@ -87,7 +89,6 @@ while True:
             hand_img = frame[y1:y2, x1:x2]
 
             # Preprocess for model
-            hand = cv2.cvtColor(hand_img, cv2.COLOR_BGR2RGB)
             img = cv2.resize(hand_img, (224,224))
             img = img.astype(np.float32) / 255.0
             img = (img - [0.485,0.456,0.406]) / [0.229,0.224,0.225]
@@ -103,16 +104,39 @@ while True:
             pred = np.argmax(outputs[0])
             label = classes[pred]
 
-            mp_draw.draw_landmarks(frame, hand_landmarks, mp.solutions.hands.HAND_CONNECTIONS)
-            y_text = y1 - 10
-            for i, (cls, p) in enumerate(top3):
-                text = f"{cls}: {p*100:.1f}%"
-                cv2.putText(frame, text, (x1, y_text - 25*i),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
+            if(label != previous_gesture):
+                hold_gesture = False
+                previous_gesture = label
+                gesture_count = 0
 
+            if(gesture_count == minimum_hold or hold_gesture):
+                    hold_gesture = True
+                    gesture_count = 0
+                    print("Detected Gesture: " + label)
+                    data = {"gesture": label, "confidence": float(top3[0][1])}
+            elif(label == previous_gesture):
+                gesture_count += 1
+
+            mp_draw.draw_landmarks(frame, hand_landmarks, mp.solutions.hands.HAND_CONNECTIONS)
+
+            y0, dy = 40, 30
+            for rank, (cls, prob) in enumerate(top3):
+                text = f"{rank+1}. {cls}: {prob*100:.1f}%"
+                y = y0 + rank * dy
+                cv2.putText(frame, text, (10, y),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
+
+    cv2.imwrite(FRAME_PATH, frame)
+
+    try:
+        with open(JSON_PATH, 'w')as f:
+            json.dump(data, f)
+    except Exception as e:
+        print("Error writing JSON: ", e)
+
+    time.sleep(0.05)
 
     cv2.imshow("Gesture Detector + Classifier", frame)
-    cv2.imshow("Cropped Hand", hand)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 

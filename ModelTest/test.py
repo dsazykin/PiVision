@@ -1,18 +1,22 @@
 import cv2
 import onnxruntime as ort
 import numpy as np
-from PIL import Image
 import torchvision.transforms as T
 import mediapipe as mp
 import os
 import time
 import json
 
-FRAME_PATH = r"C:/Users/paulm/Desktop/Uni/Year_2/Mod_1/project/temp/latest.jpg"
-JSON_PATH = r"C:/Users/paulm/Desktop/Uni/Year_2/Mod_1/project/temp/latest.json"
-
 script_dir = os.path.dirname(os.path.abspath(__file__))
-model_path = os.path.join(script_dir, "..", "models", "gesture_model_v3.onnx")
+project_root = os.path.abspath(os.path.join(script_dir, ".."))
+
+temp_dir = os.path.join(project_root, "WebServerStream")
+os.makedirs(temp_dir, exist_ok=True)
+
+FRAME_PATH = os.path.join(temp_dir, "latest.jpg")
+JSON_PATH = os.path.join(temp_dir, "latest.json")
+
+model_path = os.path.join(script_dir, "..", "Models", "gesture_model_v3.onnx")
 
 # Create inference session
 session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
@@ -47,7 +51,7 @@ classes = [
 input_name = session.get_inputs()[0].name
 
 cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_FPS, 25)
+cap.set(cv2.CAP_PROP_FPS, 30)
 mp_hands = mp.solutions.hands.Hands(
     max_num_hands=1, min_detection_confidence=0.5, min_tracking_confidence=0.5)
 mp_draw = mp.solutions.drawing_utils

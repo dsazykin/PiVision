@@ -9,11 +9,16 @@ import mediapipe as mp
 import time
 import json
 
-FRAME_PATH = r"/home/group31/Projects/project/temp/latest.jpg"
-JSON_PATH = r"/home/group31/Projects/project/temp/latest.json"
-
 script_dir = os.path.dirname(os.path.abspath(__file__))
-model_path = os.path.join(script_dir, "..", "Models", "gesture_model_v3.onnx")
+project_root = os.path.abspath(os.path.join(script_dir, ".."))
+
+temp_dir = os.path.join(project_root, "WebServerStream")
+os.makedirs(temp_dir, exist_ok=True)
+
+FRAME_PATH = os.path.join(temp_dir, "latest.jpg")
+JSON_PATH = os.path.join(temp_dir, "latest.json")
+
+model_path = os.path.join(script_dir, "..", "Models", "gesture_model_v4_handcrop.onnx")
 
 # Create inference session
 session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
