@@ -1,6 +1,6 @@
 import socket, time
 
-LAPTOP_IP = "192.168.5.2"
+LAPTOP_IP = "192.168.178.16"
 PORT = 9000
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
