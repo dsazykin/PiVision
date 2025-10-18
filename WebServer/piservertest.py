@@ -1,5 +1,5 @@
 from flask import Flask, request, redirect, url_for, Response, jsonify, render_template_string
-import database, threading, json, os, cv2, time
+import Database, threading, json, os, cv2, time
 
 app = Flask(__name__)
 
