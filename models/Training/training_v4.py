@@ -8,9 +8,13 @@ from torch.utils.data import DataLoader, random_split, DistributedSampler
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.nn.parallel import DistributedDataParallel as DDP
 import numpy as np
+import mediapipe as mp
+import cv2
+from PIL import Image
 
 # ---------- Settings ----------
-base_dir   = "/home/jovyan/.cache/kagglehub/datasets/innominate817/hagrid-sample-30k-384p/versions/5/hagrid-sample-30k-384p/hagrid_30k"
+base_dir   = "/home/jovyan/hagrid_30k_hands"
+original_dir = "/home/jovyan/.cache/kagglehub/datasets/innominate817/hagrid-sample-30k-384p/versions/5/hagrid-sample-30k-384p/hagrid_30k"
 epochs     = 30
 batch_size = 32
 lr         = 1e-4
@@ -24,7 +28,6 @@ def set_seed(seed=42):
     torch.backends.cudnn.deterministic = False
     torch.backends.cudnn.benchmark = True
     torch.set_float32_matmul_precision("high")
-
 
 def log0(msg, *, flush=True):
     """Print only from rank 0"""
@@ -42,6 +45,63 @@ transform = transforms.Compose([
     transforms.Normalize([0.485, 0.456, 0.406],
                          [0.229, 0.224, 0.225])
 ])
+
+# ---------- Image Processing ----------
+mp_hands = mp.solutions.hands.Hands(static_image_mode=True, max_num_hands=1)
+mp_drawing = mp.solutions.drawing_utils
+
+def crop_hand(image_path, save_path=None, output_size=224):
+    img = cv2.imread(image_path)
+    if img is None:
+        return None
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    results = mp_hands.process(img_rgb)
+
+    h, w, _ = img.shape
+    if not results.multi_hand_landmarks:
+        # fallback to original full image
+        resized = cv2.resize(img, (output_size, output_size))
+    else:
+        hand_landmarks = results.multi_hand_landmarks[0]
+        xs = [int(p.x * w) for p in hand_landmarks.landmark]
+        ys = [int(p.y * h) for p in hand_landmarks.landmark]
+        x_min, x_max = max(min(xs) - 20, 0), min(max(xs) + 20, w)
+        y_min, y_max = max(min(ys) - 20, 0), min(max(ys) + 20, h)
+        cropped = img[y_min:y_max, x_min:x_max]
+        resized = cv2.resize(cropped, (output_size, output_size))
+
+    if save_path:
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        cv2.imwrite(save_path, resized)
+
+    return Image.fromarray(cv2.cvtColor(resized, cv2.COLOR_BGR2RGB))
+
+def process_images():
+    print("⏳ Preprocessing images and cropping hands (with fallback)...")
+    if not os.path.exists(base_dir):
+        os.makedirs(base_dir)
+
+    total = 0
+    processed = 0
+
+    for class_name in os.listdir(base_dir):
+        class_dir = os.path.join(base_dir, class_name)
+        if not os.path.isdir(class_dir):
+            continue
+        out_dir = os.path.join(base_dir, class_name)
+        os.makedirs(out_dir, exist_ok=True)
+
+        for img_name in os.listdir(class_dir):
+            total += 1
+            img_path = os.path.join(class_dir, img_name)
+            save_path = os.path.join(out_dir, img_name)
+            if os.path.exists(save_path):
+                continue  # skip already processed
+            cropped = base_dir(img_path, save_path)
+            if cropped:
+                processed += 1
+
+    print(f"✅ Cropping complete: {processed}/{total} images processed.")
 
 # ---------- DDP Initialization ----------
 def init_ddp():
@@ -180,7 +240,7 @@ def train():
 
             if val_acc > best_val:
                 best_val = val_acc
-                torch.save(model.module.state_dict(), "gesture_model_v3.pth")
+                torch.save(model.module.state_dict(), "gesture_model_v4_handcrop.pth")
 
         scheduler.step()
 
@@ -188,26 +248,26 @@ def train():
 
     # Export to ONNX only from rank 0
     if rank == 0:
-        log0("[Export] Saving gesture_model_ddp_best.pth and gesture_model_v3.onnx ...")
+        log0("[Export] Saving gesture_model_v4_handcrop.pth and gesture_model_v4_handcrop.onnx ...")
 
         # Rebuild model on CPU
         export_model = models.efficientnet_b0(weights=None)
         in_f = export_model.classifier[1].in_features
         export_model.classifier[1] = nn.Linear(in_f, num_classes)
-        export_model.load_state_dict(torch.load("gesture_model_v3.pth", map_location="cpu"))
+        export_model.load_state_dict(torch.load("gesture_model_v4_handcrop.pth", map_location="cpu"))
         export_model.eval()
 
         # Dummy input for ONNX tracing (batch size 1, 3x224x224 image)
         dummy = torch.randn(1, 3, 224, 224, device="cpu")
 
         torch.onnx.export(
-            export_model, dummy, "gesture_model_v3.onnx",
+            export_model, dummy, "gesture_model_v4_handcrop.onnx",
             input_names=["input"], output_names=["output"],
             dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}},
             opset_version=17
         )
 
-        log0("[Export] ONNX model saved successfully: gesture_model_v3.onnx")
+        log0("[Export] ONNX model saved successfully: gesture_model_v4_handcrop.onnx")
 
     torch.distributed.destroy_process_group()
 
