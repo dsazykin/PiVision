@@ -4,18 +4,9 @@ import numpy as np
 from PIL import Image
 import torchvision.transforms as T
 import mediapipe as mp
-import os
-import time
-import json
-
-FRAME_PATH = r"C:/Users/paulm/Desktop/Uni/Year_2/Mod_1/project/temp/latest.jpg"
-JSON_PATH = r"C:/Users/paulm/Desktop/Uni/Year_2/Mod_1/project/temp/latest.json"
-
-script_dir = os.path.dirname(os.path.abspath(__file__))
-model_path = os.path.join(script_dir, "..", "models", "gesture_model_v3.onnx")
 
 # Create inference session
-session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
+session = ort.InferenceSession("models/gesture_model_v4_handcrop.onnx", providers=["CPUExecutionProvider"])
 
 # Print input/output details
 print("Model inputs:", session.get_inputs())
@@ -43,42 +34,61 @@ classes = [
     'train_val_two_up_inverted'
 ]
 
+# Load and preprocess image
+img_path = "test_call.jpg"  # your local image
+img = Image.open(img_path).convert("RGB")
+
+transform = T.Compose([
+    T.Resize((224, 224)),
+    T.ToTensor(),
+    T.Normalize([0.485, 0.456, 0.406],
+                [0.229, 0.224, 0.225])
+])
+
+x = transform(img).unsqueeze(0).numpy()
+
 # Run inference
 input_name = session.get_inputs()[0].name
+outputs = session.run(None, {input_name: x})
+pred_idx = np.argmax(outputs[0])
+print("Predicted gesture:", classes[pred_idx])
 
 cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_FPS, 25)
+cap.set(cv2.CAP_PROP_FPS, 10)
 mp_hands = mp.solutions.hands.Hands(
     max_num_hands=1, min_detection_confidence=0.5, min_tracking_confidence=0.5)
 mp_draw = mp.solutions.drawing_utils
 
-frame_count = 0
-PROCESS_EVERY = 1
-
-previous_gesture = ""
-gesture_count = 0
-minimum_hold = 10
-hold_gesture = False
+# frame_count = 0
+# PROCESS_EVERY = 10
 
 while True:
-    data = {"gesture": "None", "confidence": 0.0}
-
     ret, frame = cap.read()
     if not ret:
         break
 
-    frame_count += 1
-    if frame_count % PROCESS_EVERY != 0:
-        continue
+    # frame_count += 1
+    # if frame_count % PROCESS_EVERY != 0:
+    #     continue
 
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = mp_hands.process(rgb)
 
     if results.multi_hand_landmarks:
         for hand_landmarks in results.multi_hand_landmarks:
+            h, w, _ = frame.shape
+            xs = [int(p.x * w) for p in hand_landmarks.landmark]
+            ys = [int(p.y * h) for p in hand_landmarks.landmark]
+            margin = 30
+            x1 = max(min(xs)-margin, 0)
+            y1 = max(min(ys)-margin, 0)
+            x2 = min(max(xs)+margin, w)
+            y2 = min(max(ys)+margin, h)
+            hand_img = frame[y1:y2, x1:x2]
 
             # Preprocess for model
-            img = cv2.resize(frame, (224,224))
+            hand = cv2.cvtColor(hand_img, cv2.COLOR_BGR2RGB)
+            img = cv2.resize(hand_img, (224,224))
             img = img.astype(np.float32) / 255.0
             img = (img - [0.485,0.456,0.406]) / [0.229,0.224,0.225]
             img = np.transpose(img, (2,0,1))[np.newaxis, :].astype(np.float32)
@@ -93,40 +103,16 @@ while True:
             pred = np.argmax(outputs[0])
             label = classes[pred]
 
-            if(label != previous_gesture):
-                hold_gesture = False
-                previous_gesture = label
-                gesture_count = 0
-
-            if(gesture_count == minimum_hold or hold_gesture):
-                    hold_gesture = True
-                    gesture_count = 0
-                    print("Detected Gesture: " + label)
-                    data = {"gesture": label, "confidence": float(top3[0][1])}
-            elif(label == previous_gesture):
-                gesture_count += 1
-
             mp_draw.draw_landmarks(frame, hand_landmarks, mp.solutions.hands.HAND_CONNECTIONS)
+            y_text = y1 - 10
+            for i, (cls, p) in enumerate(top3):
+                text = f"{cls}: {p*100:.1f}%"
+                cv2.putText(frame, text, (x1, y_text - 25*i),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
 
-            y0, dy = 40, 30
-            for rank, (cls, prob) in enumerate(top3):
-                text = f"{rank+1}. {cls}: {prob*100:.1f}%"
-                y = y0 + rank * dy
-                cv2.putText(frame, text, (10, y),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
-
-
-    cv2.imwrite(FRAME_PATH, frame)
-
-    try:
-        with open(JSON_PATH, 'w')as f:
-            json.dump(data, f)
-    except Exception as e:
-        print("Error writing JSON: ", e)
-
-    time.sleep(0.05)
 
     cv2.imshow("Gesture Detector + Classifier", frame)
+    cv2.imshow("Cropped Hand", hand)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
