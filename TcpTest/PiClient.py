@@ -8,17 +8,19 @@ PORT = 9000
 
 connected = False
 
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-while(not connected):
+while not connected:
     for ip in possible_ips:
         try:
             print(f"Trying {ip}...")
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(1)
             s.connect((ip, PORT))
             print(f"Connected to {ip}")
             connected = True
             break
-        except:
+        except Exception as e:
+            print(f"Failed to connect to {ip}: {e}")
+            time.sleep(1)
             continue
 
 def send_gesture(gesture):
@@ -28,4 +30,4 @@ def send_gesture(gesture):
 while True:
     # Imagine this is your gesture recognizer output
     send_gesture("SWIPE_LEFT")
-    time.sleep(100)
+    time.sleep(3)
