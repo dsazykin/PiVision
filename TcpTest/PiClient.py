@@ -7,27 +7,27 @@ possible_ips = [
 PORT = 9000
 
 connected = False
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-while not connected:
-    for ip in possible_ips:
-        try:
-            print(f"Trying {ip}...")
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(1)
-            s.connect((ip, PORT))
-            print(f"Connected to {ip}")
-            connected = True
-            break
-        except Exception as e:
-            print(f"Failed to connect to {ip}: {e}")
-            time.sleep(1)
-            continue
+def connect_to_device():
+    global connected, s
+    while not connected:
+        for ip in possible_ips:
+            try:
+                print(f"Trying {ip}...")
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(1)
+                s.connect((ip, PORT))
+                print(f"Connected to {ip}")
+                connected = True
+                break
+            except Exception as e:
+                print(f"Failed to connect to {ip}: {e}")
+                time.sleep(1)
+                continue
 
 def send_gesture(gesture):
     s.sendall(gesture.encode() + b"\n")
 
-# Example loop
-while True:
-    # Imagine this is your gesture recognizer output
-    send_gesture("SWIPE_LEFT")
-    time.sleep(3)
+if __name__ == "__main__":
+    connect_to_device()
