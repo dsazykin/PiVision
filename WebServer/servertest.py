@@ -28,7 +28,7 @@ def add_global_css(response: Response):
 
 @app.route("/")
 def index():
-    database.initialize_database()
+    Database.initialize_database()
     return """
         <h1>Welcome to the Gesture Control Web App</h1>
         <p>This web interface lets you manage users and start gesture recognition.</p>
@@ -44,7 +44,7 @@ def login():
         username = request.form.get("username")
         password = request.form.get("password")
 
-        if database.verify_user(username, password):
+        if Database.verify_user(username, password):
             return redirect(url_for("main_page", username=username))
         else:
             return """
@@ -138,10 +138,10 @@ def mappings(username):
     if request.method == "POST":
         gesture = request.form.get("gesture")
         new_action = request.form.get("action")
-        database.update_gesture_mapping(username, gesture, new_action)
+        Database.update_gesture_mapping(username, gesture, new_action)
         return redirect(url_for("mappings", username=username))
 
-    mappings = database.get_user_mappings(username)
+    mappings = Database.get_user_mappings(username)
 
     html = f"<h1>Gesture Mappings for {username}</h1>"
     html += "<form method='POST'>"
@@ -161,8 +161,8 @@ def mappings(username):
 def showDatabase():
     databaseinfo = []
 
-    for user_name, role in database.get_all_users():
-        mappings = database.get_user_mappings(user_name)
+    for user_name, role in Database.get_all_users():
+        mappings = Database.get_user_mappings(user_name)
         databaseinfo.append({
             "user_name": user_name,
             "role": role,
@@ -187,7 +187,7 @@ def signup():
         password = request.form.get("password")
 
         try:
-            database.add_user(user_name=username, user_password=password)
+            Database.add_user(user_name=username, user_password=password)
             return f"""
                 <h1>Signup Successful</h1>
                 <p>User '{username}' created successfully.</p>
@@ -213,7 +213,7 @@ def signup():
 
 @app.route("/delete/<username>")
 def delete_user(username):
-    deleted = database.delete_user(username)
+    deleted = Database.delete_user(username)
     if deleted == 0:
         return f"<h1>Deletion Failed</h1><p style='color:red;'>User '{username}' not found.</p>"
     return f"<h1>Account Deleted</h1><p>User '{username}' has been removed.</p><a href='/'>Return Home</a>"
