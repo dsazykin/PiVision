@@ -97,6 +97,9 @@ gesture_count = 0
 minimum_hold = 10
 hold_gesture = False
 
+hold_input = True
+input_sent = False
+
 # --------------- MAIN LOOP ----------------
 try:
     while True:
@@ -143,7 +146,12 @@ try:
                 label = classes[pred]
 
                 if(label != previous_gesture):
+                    if(input_sent and hold_input):
+                        msg = "release" + mappings.get(previous_gesture)
+                        send_gesture(msg)
+                        
                     hold_gesture = False
+                    input_sent = False
                     previous_gesture = label
                     gesture_count = 0
 
@@ -152,7 +160,19 @@ try:
                         gesture_count = 0
                         print("Detected Gesture: " + label)
                         data = {"gesture": label, "confidence": float(top3[0][1])}
-                        send_gesture(mappings.get(label))
+
+                        if(not input_sent):
+                            msg = ""
+                            if hold_input:
+                                msg += "hold"
+                            else:
+                                msg += "press"
+
+                            msg += mappings.get(label)
+                            send_gesture(msg)
+
+                        input_sent = True
+
                 elif(label == previous_gesture):
                     gesture_count += 1
 
