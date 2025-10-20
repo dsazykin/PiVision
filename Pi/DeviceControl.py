@@ -30,6 +30,7 @@ sock = connect_to_server(possible_ips, PORT)
 def send_gesture(label):
     try:
         sock.sendall((label + "\n").encode())
+        print("Sent: " + label)
     except Exception as e:
         print("⚠️ Send failed, reconnecting:", e)
         sock.close()
