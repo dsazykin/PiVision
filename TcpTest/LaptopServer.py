@@ -1,7 +1,20 @@
-import socket, pyautogui
+import socket
+import pyautogui
 
 HOST = "0.0.0.0"
 PORT = 9000
+
+def perform_key_action(key_input: str):
+    # Normalize input (e.g., remove spaces and lowercase)
+    key_input = key_input.strip().lower()
+
+    # Handle combinations like "ctrl+w" or "alt+tab"
+    if '+' in key_input:
+        keys = [k.strip() for k in key_input.split('+')]
+        pyautogui.hotkey(*keys)
+    else:
+        # Handle single keys like "space", "enter", "a", etc.
+        pyautogui.press(key_input)
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     s.bind((HOST, PORT))
@@ -16,10 +29,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 break
             msg = data.decode().strip()
             print("Received:", msg)
-            # interpret gesture command
-            if msg == "SWIPE_LEFT":
-                pyautogui.hotkey("alt", "tab")
-            elif msg == "FIST":
-                pyautogui.hotkey("ctrl", "w")
-            elif msg == "OPEN_PALM":
-                pyautogui.press("space")
+            try:
+                perform_key_action(msg)
+            except Exception as e:
+                print(f"Error performing key action '{msg}': {e}")
