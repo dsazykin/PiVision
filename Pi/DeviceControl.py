@@ -7,7 +7,7 @@ import os, time, json, socket
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 # --------------- TCP CONNECTION SETUP ----------------
-possible_ips = ["192.168.5.2", "192.168.178.16"]
+possible_ips = ["192.168.5.2", "192.168.178.16", "192.168.137.1"]
 PORT = 9000
 
 def connect_to_server(possible_ips, port):
@@ -49,7 +49,7 @@ os.makedirs(temp_dir, exist_ok=True)
 FRAME_PATH = os.path.join(temp_dir, "latest.jpg")
 JSON_PATH = os.path.join(temp_dir, "latest.json")
 
-model_path = os.path.join(script_dir, "..", "Models", "gesture_model_v4_handcrop.onnx")
+model_path = os.path.join(project_root, "Models", "gesture_model_v4_handcrop.onnx")
 
 session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
 input_name = session.get_inputs()[0].name
