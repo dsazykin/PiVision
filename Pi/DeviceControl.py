@@ -7,7 +7,7 @@ import os, time, json, socket
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 # --------------- TCP CONNECTION SETUP ----------------
-possible_ips = ["192.168.5.2", "192.168.178.16"]
+possible_ips = ["192.168.5.2", "192.168.178.16", "192.168.137.1"]
 PORT = 9000
 
 def connect_to_server(possible_ips, port):
