@@ -1,4 +1,4 @@
-import sqlite3
+import sqlite3, bcrypt
 
 DB_PATH = "users.db"
 
@@ -65,31 +65,31 @@ def initialize_database():
         conn.commit()
 
 
-def add_user(user_name, user_password, role="user"):
-    with get_connection() as conn:
-        cursor = conn.cursor()
+# def add_user(user_name, user_password, role="user"):
+#     with get_connection() as conn:
+#         cursor = conn.cursor()
 
-        # Prevent duplicate usernames
-        cursor.execute("SELECT user_id FROM users WHERE user_name = ?", (user_name,))
-        if cursor.fetchone():
-            raise ValueError(f"User '{user_name}' already exists.")
+#         # Prevent duplicate usernames
+#         cursor.execute("SELECT user_id FROM users WHERE user_name = ?", (user_name,))
+#         if cursor.fetchone():
+#             raise ValueError(f"User '{user_name}' already exists.")
 
-        # Add new user
-        cursor.execute("""
-        INSERT INTO users (user_name, user_password, role)
-        VALUES (?, ?, ?)
-        """, (user_name, user_password, role))
-        user_id = cursor.lastrowid
+#         # Add new user
+#         cursor.execute("""
+#         INSERT INTO users (user_name, user_password, role)
+#         VALUES (?, ?, ?)
+#         """, (user_name, user_password, role))
+#         user_id = cursor.lastrowid
 
-        # Copy default gestures safely
-        cursor.execute("""
-        INSERT OR IGNORE INTO gesture_mappings (user_id, gesture_name, mapped_action)
-        SELECT ?, gesture_name, mapped_action
-        FROM gesture_mappings
-        WHERE user_id IS NULL
-        """, (user_id,))
+#         # Copy default gestures safely
+#         cursor.execute("""
+#         INSERT OR IGNORE INTO gesture_mappings (user_id, gesture_name, mapped_action)
+#         SELECT ?, gesture_name, mapped_action
+#         FROM gesture_mappings
+#         WHERE user_id IS NULL
+#         """, (user_id,))
 
-        conn.commit()
+#         conn.commit()
 
 
 
@@ -143,10 +143,66 @@ def delete_user(user_name):
 
         conn.commit()
         return deletedRows
+
+def get_user(username):
+    with get_connection() as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE user_name=?", (username,))
+        user = cursor.fetchone()
+        return user
     
-def verify_user(username, password):
+def get_user_password(username):
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT user_id FROM users WHERE user_name=? AND user_password=?", (username, password))
-        return cursor.fetchone() is not None
+        cursor.execute("SELECT user_password FROM users WHERE user_name=?", (username,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return row[0]  # return the actual hashed password
+    
+# def verify_user(username, password):
+#     with get_connection() as conn:
+#         cursor = conn.cursor()
+#         cursor.execute("SELECT user_id FROM users WHERE user_name=? AND user_password=?", (username, password))
+#         return cursor.fetchone() is not None
+    
+def add_user(user_name, user_password, role="user"):
+    with get_connection() as conn:
+        cursor = conn.cursor()
 
+        # Prevent duplicate usernames
+        cursor.execute("SELECT user_id FROM users WHERE user_name = ?", (user_name,))
+        if cursor.fetchone():
+            raise ValueError(f"User '{user_name}' already exists.")
+
+        # --- Hash password before storing ---
+        hashed_pw = bcrypt.hashpw(user_password.encode("utf-8"), bcrypt.gensalt())
+
+        cursor.execute("""
+        INSERT INTO users (user_name, user_password, role)
+        VALUES (?, ?, ?)
+        """, (user_name, hashed_pw, role))
+        user_id = cursor.lastrowid
+
+        # Copy default gestures safely
+        cursor.execute("""
+        INSERT OR IGNORE INTO gesture_mappings (user_id, gesture_name, mapped_action)
+        SELECT ?, gesture_name, mapped_action
+        FROM gesture_mappings
+        WHERE user_id IS NULL
+        """, (user_id,))
+
+        conn.commit()
+
+
+def verify_user(username, password):
+    """Check if username exists and password matches."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_password FROM users WHERE user_name=?", (username,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+        stored_hash = row[0]
+        return bcrypt.checkpw(password.encode("utf-8"), stored_hash)
