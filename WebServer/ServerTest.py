@@ -208,7 +208,7 @@ def mappings(username):
         table {{
             border-collapse: collapse;
             margin-top: 10px;
-            width: 80%;
+            width: 85%;
         }}
         th, td {{
             padding: 8px 12px;
@@ -243,7 +243,7 @@ def mappings(username):
             if (listening) return;
             listening = true;
             currentInput = document.getElementById('input_' + gestureId);
-            currentInput.value = 'Listening... (press key, click, or move mouse)';
+            currentInput.value = 'Listening... (key, click, scroll, or move mouse)';
             currentInput.style.backgroundColor = '#ffeeaa';
 
             function stopListening(name) {{
@@ -253,25 +253,30 @@ def mappings(username):
                 window.removeEventListener('keydown', onKey, true);
                 window.removeEventListener('mousedown', onClick, true);
                 window.removeEventListener('mousemove', onMove, true);
+                window.removeEventListener('wheel', onScroll, true);
                 if (moveTimeout) clearTimeout(moveTimeout);
             }}
 
+            // Keyboard key pressed
             function onKey(e) {{
                 e.preventDefault();
                 let key = e.key.toLowerCase();
                 if (key === ' ') key = 'space';
+                if (key === 'meta') key = 'winleft';
                 stopListening(key);
             }}
 
+            // Mouse click (left/right/middle)
             function onClick(e) {{
                 e.preventDefault();
                 let name = '';
-                if (e.button === 0) name = 'mouse_left';
-                else if (e.button === 1) name = 'mouse_middle';
-                else if (e.button === 2) name = 'mouse_right';
+                if (e.button === 0) name = 'left_click';
+                else if (e.button === 1) name = 'middle_click';
+                else if (e.button === 2) name = 'right_click';
                 stopListening(name);
             }}
 
+            // Mouse movement direction (up, down, left, right)
             function onMove(e) {{
                 if (!startX && !startY) {{
                     startX = e.clientX;
@@ -289,12 +294,20 @@ def mappings(username):
                     }}
                     stopListening(name);
                     startX = startY = 0;
-                }}, 200); // small delay to determine direction
+                }}, 200);
+            }}
+
+            // Scroll wheel detection (scroll_up / scroll_down)
+            function onScroll(e) {{
+                e.preventDefault();
+                let name = e.deltaY < 0 ? 'scroll_up' : 'scroll_down';
+                stopListening(name);
             }}
 
             window.addEventListener('keydown', onKey, true);
             window.addEventListener('mousedown', onClick, true);
             window.addEventListener('mousemove', onMove, true);
+            window.addEventListener('wheel', onScroll, true);
         }}
     </script>
 
@@ -334,14 +347,15 @@ def mappings(username):
     </table>
 
     <br>
-    <form method="POST" action="/reset_mappings/{username}" 
+    <form method="POST" action="/reset_mappings/{username}"
           onsubmit="return confirm('Are you sure you want to reset all mappings to default?');">
-        <input type="submit" value="Revert to Default Mappings" 
+        <input type="submit" value="Revert to Default Mappings"
                style="background-color:red; color:white; padding:8px; border:none; border-radius:4px; cursor:pointer;">
     </form>
     """
 
     return html
+
 
 @app.route("/reset_mappings/<username>", methods=["POST"])
 def reset_mappings(username):
