@@ -32,10 +32,28 @@ input[type="text"], input[type="password"] {
     border: 1px solid #ccc;
 }
 
+.homepage_container_div {
+    display: flex;
+    flex-wrap: wrap;
+    border-radius: 5px;
+    background-color: #b0b0b0;
+    justify-content: space-evenly, flex-start;
+}
+
+.homepage_content_div {
+    width: 45%;
+    height: 600px;
+    min-width: 300px;
+    padding: 10px;
+    margin: 8px;
+    border-radius: 4px;
+    background-color: #dcdcdc;
+}
+
 .db_container_div {
     display: flex;
     flex-wrap: wrap;
-    background-color: pink;
+    background-color: #b0b0b0;
     justify-content: space-evenly, flex-start;
 }
 
@@ -45,5 +63,5 @@ input[type="text"], input[type="password"] {
     padding: 10px;
     margin: 8px;
     border-radius: 4px;
-    background-color: #b8b8b8;
+    background-color: #dcdcdc;
 }
