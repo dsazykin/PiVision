@@ -16,7 +16,7 @@ def connect_to_server(possible_ips, port):
             try:
                 print(f"Trying {ip}...")
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.settimeout(2)
+                s.settimeout(1)
                 s.connect((ip, port))
                 print(f"✅ Connected to {ip}:{port}")
                 return s
@@ -148,9 +148,9 @@ try:
 
                 if(label != previous_gesture):
                     print("Detected gesture changed")
-                    print("Input sent: " + input_sent)
-                    print("Previous Gesture: " + previous_gesture)
-                    print("Hold/Press: " + mappings.get(previous_gesture)[0])
+                    print("Input sent: ", input_sent)
+                    print("Previous Gesture: ", previous_gesture)
+                    print("Hold/Press: ", mappings.get(previous_gesture)[0])
                     if(input_sent and mappings.get(label)[1] == "hold"):
                         msg = "release" + " " + mappings.get(previous_gesture)[0]
                         send_gesture(msg)
