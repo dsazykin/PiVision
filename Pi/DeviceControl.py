@@ -147,7 +147,7 @@ try:
 
                 if(label != previous_gesture):
                     if(input_sent and mappings.get(label)[1] == "hold"):
-                        msg = "release" + mappings.get(previous_gesture)[0]
+                        msg = "release" + " " + mappings.get(previous_gesture)[0]
                         send_gesture(msg)
 
                     hold_gesture = False
