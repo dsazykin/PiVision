@@ -61,24 +61,26 @@ classes = [
     'rock', 'stop', 'stop_inverted',
     'three', 'three2', 'two_up', 'two_up_inverted'
 ]
-mappings = {"call": "Esc",
-            "dislike": "Scroll down",
-            "fist": "Delete",
-            "four": "Tab",
-            "like": "Scroll up",
-            "mute": "Toggle sound on/off",
-            "ok": "Enter",
-            "one": "Left click",
-            "palm": "Space",
-            "peace": "Windows key",
-            "peace_inverted": "Alt",
-            "rock": "w",
-            "stop": "mouse_up",
-            "stop_inverted": "mouse_down",
-            "three": "mouse_right",
-            "three2": "mouse_left",
-            "two_up": "Right click",
-            "two_up_inverted": "Ctrl"}
+mappings = {
+    "call": "esc",                     
+    "dislike": "scroll_down",
+    "fist": "delete",
+    "four": "tab",
+    "like": "scroll_up",
+    "mute": "volume_toggle",
+    "ok": "enter",
+    "one": "mouse_left",
+    "palm": "space",
+    "peace": "winleft",
+    "peace_inverted": "alt",
+    "rock": "w",
+    "stop": "mouse_up",
+    "stop_inverted": "mouse_down",
+    "three": "mouse_right",
+    "three2": "mouse_left",
+    "two_up": "right_click",
+    "two_up_inverted": "ctrl"
+}
 
 # --------------- MEDIAPIPE SETUP ----------------
 cap = cv2.VideoCapture(0)

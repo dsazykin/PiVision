@@ -4,17 +4,28 @@ import pyautogui
 HOST = "0.0.0.0"
 PORT = 9000
 
-def perform_key_action(key_input: str):
-    # Normalize input (e.g., remove spaces and lowercase)
-    key_input = key_input.strip().lower()
-
-    # Handle combinations like "ctrl+w" or "alt+tab"
-    if '+' in key_input:
-        keys = [k.strip() for k in key_input.split('+')]
-        pyautogui.hotkey(*keys)
+def perform_action(mapped_key):
+    if mapped_key == "scroll_up":
+        pyautogui.scroll(300)
+    elif mapped_key == "scroll_down":
+        pyautogui.scroll(-300)
+    elif mapped_key == "mouse_up":
+        pyautogui.moveRel(0, -50)
+    elif mapped_key == "mouse_down":
+        pyautogui.moveRel(0, 50)
+    elif mapped_key == "mouse_left":
+        pyautogui.moveRel(-50, 0)
+    elif mapped_key == "mouse_right":
+        pyautogui.moveRel(50, 0)
+    elif mapped_key == "right_click":
+        pyautogui.click(button='right')
+    elif mapped_key == "mouse_left":
+        pyautogui.click(button='left')
+    elif mapped_key == "volume_toggle":
+        pyautogui.press("volumemute")
     else:
-        # Handle single keys like "space", "enter", "a", etc.
-        pyautogui.press(key_input)
+        # normal key press
+        pyautogui.press(mapped_key)
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     s.bind((HOST, PORT))
@@ -30,6 +41,6 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             msg = data.decode().strip()
             print("Received:", msg)
             try:
-                perform_key_action(msg)
+                perform_action(msg)
             except Exception as e:
                 print(f"Error performing key action '{msg}': {e}")
