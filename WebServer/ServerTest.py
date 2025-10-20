@@ -1,5 +1,5 @@
 from flask import Flask, request, redirect, url_for, Response, jsonify, render_template_string
-import Database, threading, json, os, cv2, time
+import Database, threading, json, os, cv2, time, pyautogui
 
 app = Flask(__name__)
 
@@ -204,8 +204,6 @@ def mappings(username):
     # Get user mappings (now returns {gesture: (action, duration)})
     mappings = Database.get_user_mappings(username)
 
-    print(mappings)
-
     html = f"""
     <h1>Gesture Mappings for {username}</h1>
     <style>
@@ -224,7 +222,7 @@ def mappings(username):
             border-radius: 4px;
             border: 1px solid #888;
         }}
-        input[type='submit'] {{
+        input[type='submit'], button {{
             padding: 5px 10px;
             background-color: #4CAF50;
             color: white;
@@ -232,10 +230,50 @@ def mappings(username):
             border-radius: 4px;
             cursor: pointer;
         }}
-        input[type='submit']:hover {{
+        input[type='submit']:hover, button:hover {{
             background-color: #45a049;
         }}
     </style>
+
+    <script>
+        let listening = false;
+        let currentInput = null;
+
+        // Called when user clicks "Edit"
+        function startListening(gestureId) {{
+            if (listening) return;
+            listening = true;
+            currentInput = document.getElementById('input_' + gestureId);
+            currentInput.value = 'Press any key or click...';
+
+            // Listen for keyboard or mouse input
+            function onKey(e) {{
+                e.preventDefault();
+                const key = e.key === ' ' ? 'space' : e.key.toLowerCase();
+                stopListening();
+                currentInput.value = key;
+            }}
+
+            function onClick(e) {{
+                e.preventDefault();
+                let name = '';
+                if (e.button === 0) name = 'mouse_left';
+                else if (e.button === 1) name = 'mouse_middle';
+                else if (e.button === 2) name = 'mouse_right';
+                stopListening();
+                currentInput.value = name;
+            }}
+
+            function stopListening() {{
+                listening = false;
+                window.removeEventListener('keydown', onKey, true);
+                window.removeEventListener('mousedown', onClick, true);
+            }}
+
+            window.addEventListener('keydown', onKey, true);
+            window.addEventListener('mousedown', onClick, true);
+        }}
+    </script>
 
     <table>
         <tr>
@@ -251,7 +289,10 @@ def mappings(username):
         <tr>
             <form method="POST">
                 <td><strong>{gesture}</strong></td>
-                <td><input type="text" name="action" value="{action}" required></td>
+                <td>
+                    <input type="text" id="input_{gesture}" name="action" value="{action}" required readonly>
+                    <button type="button" onclick="startListening('{gesture}')">Edit</button>
+                </td>
                 <td>
                     <select name="duration">
                         <option value="press" {'selected' if duration == 'press' else ''}>press</option>
@@ -275,11 +316,10 @@ def mappings(username):
         <input type="submit" value="Revert to Default Mappings" 
                style="background-color:red; color:white; padding:8px; border:none; border-radius:4px; cursor:pointer;">
     </form>
-
-    <br><a href='/start/{username}'>Start Recognition</a>
     """
 
     return html
+
 
 @app.route("/reset_mappings/<username>", methods=["POST"])
 def reset_mappings(username):
