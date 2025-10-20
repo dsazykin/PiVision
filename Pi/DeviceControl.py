@@ -62,24 +62,24 @@ classes = [
     'three', 'three2', 'two_up', 'two_up_inverted'
 ]
 mappings = {
-    "call": "esc",                     
-    "dislike": "scroll_down",
-    "fist": "delete",
-    "four": "tab",
-    "like": "scroll_up",
-    "mute": "volume_toggle",
-    "ok": "enter",
-    "one": "left_click",
-    "palm": "space",
-    "peace": "winleft",
-    "peace_inverted": "alt",
-    "rock": "w",
-    "stop": "mouse_up",
-    "stop_inverted": "mouse_down",
-    "three": "mouse_right",
-    "three2": "mouse_left",
-    "two_up": "right_click",
-    "two_up_inverted": "ctrl"
+    "call": ["esc", "press"],                     
+    "dislike": ["scroll_down", "hold"],
+    "fist": ["delete", "press"],
+    "four": ["tab", "press"],
+    "like": ["scroll_up", "hold"],
+    "mute": ["volume_toggle", "press"],
+    "ok": ["enter", "press"],
+    "one": ["left_click", "press"],
+    "palm": ["space", "press"],
+    "peace": ["winleft", "press"],
+    "peace_inverted": ["alt", "hold"],
+    "rock": ["w", "press"],
+    "stop": ["mouse_up", "hold"],
+    "stop_inverted": ["mouse_down", "hold"],
+    "three": ["mouse_right", "hold"],
+    "three2": ["mouse_left", "hold"],
+    "two_up": ["right_click", "press"],
+    "two_up_inverted": ["ctrl", "hold"]
 }
 
 # --------------- MEDIAPIPE SETUP ----------------
@@ -146,10 +146,10 @@ try:
                 label = classes[pred]
 
                 if(label != previous_gesture):
-                    if(input_sent and hold_input):
+                    if(input_sent and mappings.get(label)[1] == "hold"):
                         msg = "release" + mappings.get(previous_gesture)
                         send_gesture(msg)
-                        
+
                     hold_gesture = False
                     input_sent = False
                     previous_gesture = label
@@ -162,13 +162,7 @@ try:
                         data = {"gesture": label, "confidence": float(top3[0][1])}
 
                         if(not input_sent):
-                            msg = ""
-                            if hold_input:
-                                msg += "hold"
-                            else:
-                                msg += "press"
-
-                            msg += mappings.get(label)
+                            msg = mappings.get(label)[1] + " " + mappings.get(label)[0]
                             send_gesture(msg)
 
                         input_sent = True
