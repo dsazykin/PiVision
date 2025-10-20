@@ -181,8 +181,24 @@ def mappings(username):
             <input type='submit' value='Update'><br><br>
         </form>
         """
-    html += f"<br><a href='/start/{username}'>Start Recognition</a>"
+    html += f"""
+    <br>
+    <form method="POST" action="/reset_mappings/{username}" onsubmit="return confirm('Are you sure you want to reset all mappings to default?');">
+        <input type="submit" value="Revert to Default Mappings" style="background-color:red; color:white; padding:8px; border:none; border-radius:4px; cursor:pointer;">
+    </form>
+    <br><a href='/start/{username}'>Start Recognition</a>
+    """
+
     return html
+
+@app.route("/reset_mappings/<username>", methods=["POST"])
+def reset_mappings(username):
+    success = Database.reset_user_mappings(username)
+    if success:
+        return redirect(url_for("mappings", username=username))
+    else:
+        return f"<h1>Error</h1><p>Could not reset mappings for {username}.</p>"
+
 
 # Page for retrieving the database, not accessible through website, type url in yourself.
 @app.route("/database")
@@ -250,4 +266,4 @@ def delete_user(username):
 
     
 
-app.run(host="0.0.0.0", port=5000, threaded = True)
+app.run(host="0.0.0.0", port=5000, threaded = True, debug= True)
