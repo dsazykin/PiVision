@@ -95,7 +95,7 @@ mp_draw = mp.solutions.drawing_utils
 
 previous_gesture = ""
 gesture_count = 0
-minimum_hold = 10
+minimum_hold = 3
 hold_gesture = False
 
 hold_input = True
