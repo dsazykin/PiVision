@@ -5,7 +5,6 @@ DB_PATH = "users.db"
 def get_connection():
     return sqlite3.connect(DB_PATH)
 
-
 def initialize_database():
     """Create all necessary tables if they don't exist."""
     with get_connection() as conn:
@@ -31,6 +30,18 @@ def initialize_database():
             duration TEXT NOT NULL,
             FOREIGN KEY (user_id) REFERENCES users(user_id),
             UNIQUE(user_id, gesture_name)
+        )
+        """)
+
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sessions (
+            session_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            session_token TEXT UNIQUE NOT NULL,
+            role TEXT CHECK(role IN ('user', 'admin')) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            expires_at TIMESTAMP NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(user_id)
         )
         """)
 
@@ -207,3 +218,65 @@ def verify_user(username, password):
             return False
         stored_hash = row[0]
         return bcrypt.checkpw(password.encode("utf-8"), stored_hash)
+    
+import secrets
+from datetime import datetime, timedelta
+
+# --- SESSION MANAGEMENT ---
+def create_session(user_id, role):
+    """Create a new session and return its token."""
+    token = secrets.token_hex(32)
+    expires_at = (datetime.utcnow() + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+        INSERT INTO sessions (user_id, session_token, role, expires_at)
+        VALUES (?, ?, ?, ?)
+        """, (user_id, token, role, expires_at))
+        conn.commit()
+    return token
+
+
+def get_session(token):
+    """Return session data if valid, else None."""
+    with get_connection() as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+        SELECT s.*, u.user_name
+        FROM sessions s
+        JOIN users u ON s.user_id = u.user_id
+        WHERE s.session_token = ? AND s.expires_at > CURRENT_TIMESTAMP
+        """, (token,))
+        return cursor.fetchone()
+    
+def get_all_sessions():
+    with get_connection() as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+        SELECT s.session_id, s.session_token, s.role, s.created_at, s.expires_at,
+               u.user_name
+        FROM sessions s
+        JOIN users u ON s.user_id = u.user_id
+        ORDER BY s.created_at DESC
+        """)
+        return cursor.fetchall()
+
+
+
+def delete_session(token):
+    """Remove a specific session."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM sessions WHERE session_token=?", (token,))
+        conn.commit()
+
+
+def cleanup_expired_sessions():
+    """Remove all expired sessions."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM sessions WHERE expires_at < CURRENT_TIMESTAMP")
+        conn.commit()

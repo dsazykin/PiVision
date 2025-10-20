@@ -1,7 +1,29 @@
 from flask import Flask, request, redirect, url_for, Response, jsonify, render_template_string
 import Database, threading, json, os, cv2, time, pyautogui
 
+from functools import wraps
+from flask import make_response
+import secrets
+
+
 app = Flask(__name__)
+
+def get_session_token():
+    return request.cookies.get("session_token")
+
+def require_login(f):
+    """Decorator to require a valid session."""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        token = get_session_token()
+        session = Database.get_session(token) if token else None
+        if not session:
+            return redirect(url_for("login"))
+        # Pass session info into the route
+        request.session = session
+        return f(*args, **kwargs)
+    return wrapper
+
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(script_dir, ".."))
@@ -45,7 +67,12 @@ def login():
         password = request.form.get("password")
 
         if Database.verify_user(username, password):
-            return redirect(url_for("main_page", username=username))
+            user = Database.get_user(username)
+            token = Database.create_session(user["user_id"], user["role"])
+
+            resp = make_response(redirect(url_for("main_page", username=username)))
+            resp.set_cookie("session_token", token, httponly=True, samesite="Lax", max_age=7200)
+            return resp
         else:
             return """
                 <h1>Login Failed</h1>
@@ -66,7 +93,12 @@ def login():
 
 @app.route("/logout")
 def logout():
-    return redirect(url_for("index"))
+    token = get_session_token()
+    if token:
+        Database.delete_session(token)
+    resp = make_response(redirect(url_for("login")))
+    resp.delete_cookie("session_token")
+    return resp
 
 @app.route("/testing")
 def test():
@@ -126,6 +158,7 @@ def video():
 
 # This page is the "Homescreen", the page after login.
 @app.route("/main/<username>")
+@require_login
 def main_page(username):
     html = """
     <html><head><title>Pi Vision Gestures</title>
@@ -192,6 +225,7 @@ def main_page(username):
 #     return html
 
 @app.route("/mappings/<username>", methods=["GET", "POST"])
+@require_login
 def mappings(username):
     if request.method == "POST":
         gesture = request.form.get("gesture")
@@ -368,6 +402,7 @@ def reset_mappings(username):
 
 # Page for retrieving the database, not accessible through website, type url in yourself.
 @app.route("/database")
+@require_login
 def showDatabase():
     databaseinfo = []
 
@@ -421,6 +456,83 @@ def signup():
         <br><a href="/login">Already have an account? Login here</a>
     """
 
+@app.route("/sessions", methods=["GET"])
+def show_sessions():
+    sessions = Database.get_all_sessions()
+
+    if not sessions:
+        return "<h2>No active sessions found.</h2>"
+
+    html = """
+    <h1>Active Sessions</h1>
+    <style>
+        table {
+            border-collapse: collapse;
+            margin-top: 20px;
+            width: 90%;
+            font-family: Arial, sans-serif;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: center;
+        }
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .token-cell {
+            max-width: 320px;
+            overflow-wrap: anywhere;
+            font-family: monospace;
+            color: #333;
+        }
+        h1 {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+    </style>
+
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>User</th>
+            <th>Role</th>
+            <th>Session Token</th>
+            <th>Created At</th>
+            <th>Expires At</th>
+        </tr>
+    """
+
+    for s in sessions:
+        html += f"""
+        <tr>
+            <td>{s['session_id']}</td>
+            <td>{s['user_name']}</td>
+            <td>{s['role']}</td>
+            <td class="token-cell">{s['session_token']}</td>
+            <td>{s['created_at']}</td>
+            <td>{s['expires_at']}</td>
+        </tr>
+        """
+
+    html += "</table>"
+
+    html += """
+    <br><a href='/'><button style='padding:10px 20px; border:none; background-color:#4CAF50; color:white; border-radius:5px; cursor:pointer;'>Back Home</button></a>
+    """
+
+    return html
+
+
 # Only used to delete Users. Currently you're only able to delete your own accout with a button
 # Or you need to type in the url with someone else's name to delete that account.
 @app.route("/delete/<username>")
@@ -429,7 +541,5 @@ def delete_user(username):
     if deleted == 0:
         return f"<h1>Deletion Failed</h1><p style='color:red;'>User '{username}' not found.</p>"
     return f"<h1>Account Deleted</h1><p>User '{username}' has been removed.</p><a href='/'>Return Home</a>"
-
-    
 
 app.run(host="0.0.0.0", port=5000, threaded = True, debug= True)
