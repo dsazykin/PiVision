@@ -1,5 +1,5 @@
 from flask import Flask, request, redirect, url_for, Response, jsonify, render_template_string
-import Database, threading, json, os, cv2, time
+import Database, threading, json, os, cv2, time, bcrypt
 
 app = Flask(__name__)
 
@@ -193,10 +193,15 @@ def showDatabase():
 
     for user_name, role in Database.get_all_users():
         mappings = Database.get_user_mappings(user_name)
+        password = Database.get_user_password(user_name)    
+        if isinstance(password, bytes):
+            password = password.decode('utf-8')
+        print(f"Hashed password for {user_name}: {password}")
         databaseinfo.append({
             "user_name": user_name,
             "role": role,
-            "mappings": mappings
+            "mappings": mappings,
+            "password": password
         })
 
     # Build HTML
@@ -206,7 +211,8 @@ def showDatabase():
         html += f"<h2>User: {user['user_name']} (Role: {user['role']})</h2><ul>"
         for gesture, action in user['mappings'].items():
             html += f"<li>{gesture}: {action}</li>"
-        html += "</ul></div>" # ul + entry divs
+        html += f"</ul><p><strong>Hashed Password:</strong> {user['password']}</p></div>"
+        html += "</ul></div>" # ul + entry divs  
     html += "</div>" # container div
     return html
 
@@ -248,7 +254,5 @@ def delete_user(username):
     if deleted == 0:
         return f"<h1>Deletion Failed</h1><p style='color:red;'>User '{username}' not found.</p>"
     return f"<h1>Account Deleted</h1><p>User '{username}' has been removed.</p><a href='/'>Return Home</a>"
-
-    
 
 app.run(host="0.0.0.0", port=5000, threaded = True)
