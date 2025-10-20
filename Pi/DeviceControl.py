@@ -150,7 +150,7 @@ try:
                         gesture_count = 0
                         print("Detected Gesture: " + label)
                         data = {"gesture": label, "confidence": float(top3[0][1])}
-                        send_gesture(label)
+                        send_gesture(mappings.get(label))
                 elif(label == previous_gesture):
                     gesture_count += 1
 
