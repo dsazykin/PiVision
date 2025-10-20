@@ -69,7 +69,7 @@ mappings = {
     "like": "scroll_up",
     "mute": "volume_toggle",
     "ok": "enter",
-    "one": "mouse_left",
+    "one": "left_click",
     "palm": "space",
     "peace": "winleft",
     "peace_inverted": "alt",

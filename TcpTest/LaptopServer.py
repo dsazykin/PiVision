@@ -17,6 +17,8 @@ def perform_action(mapped_key):
         pyautogui.moveRel(-50, 0)
     elif mapped_key == "mouse_right":
         pyautogui.moveRel(50, 0)
+    elif mapped_key == "left_click":
+        pyautogui.click(button='left')
     elif mapped_key == "right_click":
         pyautogui.click(button='right')
     elif mapped_key == "mouse_left":
