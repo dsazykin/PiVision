@@ -184,16 +184,16 @@ try:
                     y = y0 + rank * dy
                     cv2.putText(frame, text, (10, y),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
-            else:
-                if (previous_gesture != ""):
-                    if(input_sent and mappings.get(previous_gesture)[1] == "hold"):
-                        msg = "release" + " " + mappings.get(previous_gesture)[0]
-                        send_gesture(msg)
+        else:
+            if (previous_gesture != ""):
+                if(input_sent and mappings.get(previous_gesture)[1] == "hold"):
+                    msg = "release" + " " + mappings.get(previous_gesture)[0]
+                    send_gesture(msg)
 
-                    hold_gesture = False
-                    input_sent = False
-                    gesture_count = 0
-                    previous_gesture = ""
+                hold_gesture = False
+                input_sent = False
+                gesture_count = 0
+                previous_gesture = ""
                     
         cv2.imwrite(FRAME_PATH, frame)
 
