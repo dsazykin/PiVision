@@ -5,6 +5,7 @@ DB_PATH = "users.db"
 def get_connection():
     return sqlite3.connect(DB_PATH)
 
+
 def initialize_database():
     """Create all necessary tables if they don't exist."""
     with get_connection() as conn:
@@ -27,84 +28,56 @@ def initialize_database():
             user_id INTEGER,
             gesture_name TEXT NOT NULL,
             mapped_action TEXT NOT NULL,
+            duration TEXT NOT NULL,
             FOREIGN KEY (user_id) REFERENCES users(user_id),
             UNIQUE(user_id, gesture_name)
         )
         """)
 
-        # Insert default gestures (for user_id = NULL)
+        # Default gestures: [mapped_action, duration]
         default_gestures = {
-            "call": "Esc",
-            "dislike": "Scroll down",
-            "fist": "Delete",
-            "four": "Tab",
-            "like": "Scroll up",
-            "mute": "Toggle sound on/off",
-            "ok": "Enter",
-            "one": "Left click",
-            "palm": "Space",
-            "peace": "Windows key",
-            "peace_inverted": "Alt",
-            "rock": "w",
-            "stop": "mouse_up",
-            "stop_inverted": "mouse_down",
-            "three": "mouse_right",
-            "three2": "mouse_left",
-            "two_up": "Right click",
-            "two_up_inverted": "Ctrl"
+            "call": ["esc", "press"],
+            "dislike": ["scroll_down", "hold"],
+            "fist": ["delete", "press"],
+            "four": ["tab", "press"],
+            "like": ["scroll_up", "hold"],
+            "mute": ["volume_toggle", "press"],
+            "ok": ["enter", "press"],
+            "one": ["left_click", "press"],
+            "palm": ["space", "press"],
+            "peace": ["winleft", "press"],
+            "peace_inverted": ["alt", "hold"],
+            "rock": ["w", "press"],
+            "stop": ["mouse_up", "hold"],
+            "stop_inverted": ["mouse_down", "hold"],
+            "three": ["mouse_right", "hold"],
+            "three2": ["mouse_left", "hold"],
+            "two_up": ["right_click", "press"],
+            "two_up_inverted": ["ctrl", "hold"]
         }
 
-        # Insert only if not already present (default mappings have user_id IS NULL)
-        for gesture, action in default_gestures.items():
+        # Insert defaults only if not already present
+        for gesture, (action, duration) in default_gestures.items():
             cursor.execute("""
-            INSERT OR IGNORE INTO gesture_mappings (user_id, gesture_name, mapped_action)
-            VALUES (NULL, ?, ?)
-            """, (gesture, action))
+            INSERT OR IGNORE INTO gesture_mappings (user_id, gesture_name, mapped_action, duration)
+            VALUES (NULL, ?, ?, ?)
+            """, (gesture, action, duration))
 
         conn.commit()
 
 
-# def add_user(user_name, user_password, role="user"):
-#     with get_connection() as conn:
-#         cursor = conn.cursor()
-
-#         # Prevent duplicate usernames
-#         cursor.execute("SELECT user_id FROM users WHERE user_name = ?", (user_name,))
-#         if cursor.fetchone():
-#             raise ValueError(f"User '{user_name}' already exists.")
-
-#         # Add new user
-#         cursor.execute("""
-#         INSERT INTO users (user_name, user_password, role)
-#         VALUES (?, ?, ?)
-#         """, (user_name, user_password, role))
-#         user_id = cursor.lastrowid
-
-#         # Copy default gestures safely
-#         cursor.execute("""
-#         INSERT OR IGNORE INTO gesture_mappings (user_id, gesture_name, mapped_action)
-#         SELECT ?, gesture_name, mapped_action
-#         FROM gesture_mappings
-#         WHERE user_id IS NULL
-#         """, (user_id,))
-
-#         conn.commit()
-
-
-
-def update_gesture_mapping(username, gesture_name, new_action):
+def update_gesture_mapping(username, gesture_name, new_action, new_duration):
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
             UPDATE gesture_mappings
-            SET mapped_action = ?
+            SET mapped_action = ?, duration = ?
             WHERE gesture_name = ?
               AND user_id = (SELECT user_id FROM users WHERE user_name = ?)
-        """, (new_action, gesture_name, username))
+        """, (new_action, new_duration, gesture_name, username))
         conn.commit()
 
 
-# Reset all a user's gesture mappings back to the system defaults.
 def reset_user_mappings(username):
     """Reset all a user's gesture mappings back to the system defaults."""
     try:
@@ -121,12 +94,12 @@ def reset_user_mappings(username):
 
             # Delete all custom mappings
             cursor.execute("DELETE FROM gesture_mappings WHERE user_id = ?", (user_id,))
-            conn.commit()  # flush deletion
+            conn.commit()
 
             # Copy defaults safely
             cursor.execute("""
-                INSERT OR REPLACE INTO gesture_mappings (user_id, gesture_name, mapped_action)
-                SELECT ?, gesture_name, mapped_action
+                INSERT OR REPLACE INTO gesture_mappings (user_id, gesture_name, mapped_action, duration)
+                SELECT ?, gesture_name, mapped_action, duration
                 FROM gesture_mappings
                 WHERE user_id IS NULL
             """, (user_id,))
@@ -143,13 +116,13 @@ def get_user_mappings(user_name):
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-        SELECT g.gesture_name, g.mapped_action
+        SELECT g.gesture_name, g.mapped_action, g.duration
         FROM gesture_mappings g
         JOIN users u ON g.user_id = u.user_id
         WHERE u.user_name = ?
         """, (user_name,))
         rows = cursor.fetchall()
-        return {gesture: action for gesture, action in rows}
+        return {gesture: (action, duration) for gesture, action, duration in rows}
 
 
 def get_all_users():
@@ -158,11 +131,12 @@ def get_all_users():
         cursor.execute("SELECT user_name, role FROM users")
         return cursor.fetchall()
 
+
 def delete_user(user_name):
     with get_connection() as conn:
         cursor = conn.cursor()
 
-        # Delete gesture mappings in the gesture mappings table first
+        # Delete gesture mappings first
         cursor.execute("""
         DELETE FROM gesture_mappings
         WHERE user_id = (
@@ -170,46 +144,40 @@ def delete_user(user_name):
         )
         """, (user_name,))
 
-        # Delete the user itself
+        # Delete user
         cursor.execute("DELETE FROM users WHERE user_name = ?", (user_name,))
-        deletedRows = cursor.rowcount
+        deleted_rows = cursor.rowcount
 
         conn.commit()
-        return deletedRows
+        return deleted_rows
+
 
 def get_user(username):
     with get_connection() as conn:
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM users WHERE user_name=?", (username,))
-        user = cursor.fetchone()
-        return user
-    
+        return cursor.fetchone()
+
+
 def get_user_password(username):
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT user_password FROM users WHERE user_name=?", (username,))
         row = cursor.fetchone()
-        if not row:
-            return None
-        return row[0]  # return the actual hashed password
-    
-# def verify_user(username, password):
-#     with get_connection() as conn:
-#         cursor = conn.cursor()
-#         cursor.execute("SELECT user_id FROM users WHERE user_name=? AND user_password=?", (username, password))
-#         return cursor.fetchone() is not None
-    
+        return row[0] if row else None
+
+
 def add_user(user_name, user_password, role="user"):
     with get_connection() as conn:
         cursor = conn.cursor()
 
-        # Prevent duplicate usernames
+        # Prevent duplicates
         cursor.execute("SELECT user_id FROM users WHERE user_name = ?", (user_name,))
         if cursor.fetchone():
             raise ValueError(f"User '{user_name}' already exists.")
 
-        # --- Hash password before storing ---
+        # Hash password
         hashed_pw = bcrypt.hashpw(user_password.encode("utf-8"), bcrypt.gensalt())
 
         cursor.execute("""
@@ -218,10 +186,10 @@ def add_user(user_name, user_password, role="user"):
         """, (user_name, hashed_pw, role))
         user_id = cursor.lastrowid
 
-        # Copy default gestures safely
+        # Copy default gestures with duration
         cursor.execute("""
-        INSERT OR IGNORE INTO gesture_mappings (user_id, gesture_name, mapped_action)
-        SELECT ?, gesture_name, mapped_action
+        INSERT OR IGNORE INTO gesture_mappings (user_id, gesture_name, mapped_action, duration)
+        SELECT ?, gesture_name, mapped_action, duration
         FROM gesture_mappings
         WHERE user_id IS NULL
         """, (user_id,))

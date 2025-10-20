@@ -160,32 +160,122 @@ def main_page(username):
     </body></html>"""
     return html 
 
-# Personal Mappings page, you can also change mappings
+# # Personal Mappings page, you can also change mappings
+# @app.route("/mappings/<username>", methods=["GET", "POST"])
+# def mappings(username):
+#     if request.method == "POST":
+#         gesture = request.form.get("gesture")
+#         new_action = request.form.get("action")
+#         Database.update_gesture_mapping(username, gesture, new_action)
+#         return redirect(url_for("mappings", username=username))
+
+#     mappings = Database.get_user_mappings(username)
+
+#     html = f"<h1>Gesture Mappings for {username}</h1>"
+#     for gesture, action in mappings.items():
+#         html += f"""
+#         <form method='POST'>
+#             <label>{gesture}:</label>
+#             <input type='text' name='action' value='{action}' required>
+#             <input type='hidden' name='gesture' value='{gesture}'>
+#             <input type='submit' value='Update'><br><br>
+#         </form>
+#         """
+#     html += f"""
+#     <br>
+#     <form method="POST" action="/reset_mappings/{username}" onsubmit="return confirm('Are you sure you want to reset all mappings to default?');">
+#         <input type="submit" value="Revert to Default Mappings" style="background-color:red; color:white; padding:8px; border:none; border-radius:4px; cursor:pointer;">
+#     </form>
+#     <br><a href='/start/{username}'>Start Recognition</a>
+#     """
+
+#     return html
+
+# Personal Mappings page — view and modify keybind + duration
 @app.route("/mappings/<username>", methods=["GET", "POST"])
 def mappings(username):
     if request.method == "POST":
         gesture = request.form.get("gesture")
         new_action = request.form.get("action")
-        Database.update_gesture_mapping(username, gesture, new_action)
+        new_duration = request.form.get("duration")
+        Database.update_gesture_mapping(username, gesture, new_action, new_duration)
         return redirect(url_for("mappings", username=username))
 
+    # Get user mappings (now returns {gesture: (action, duration)})
     mappings = Database.get_user_mappings(username)
 
-    html = f"<h1>Gesture Mappings for {username}</h1>"
-    for gesture, action in mappings.items():
+    print(mappings)
+
+    html = f"""
+    <h1>Gesture Mappings for {username}</h1>
+    <style>
+        table {{
+            border-collapse: collapse;
+            margin-top: 10px;
+            width: 80%;
+        }}
+        th, td {{
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            text-align: center;
+        }}
+        input[type='text'], select {{
+            padding: 5px;
+            border-radius: 4px;
+            border: 1px solid #888;
+        }}
+        input[type='submit'] {{
+            padding: 5px 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }}
+        input[type='submit']:hover {{
+            background-color: #45a049;
+        }}
+    </style>
+
+    <table>
+        <tr>
+            <th>Gesture</th>
+            <th>Keybind</th>
+            <th>Duration</th>
+            <th>Action</th>
+        </tr>
+    """
+
+    for gesture, (action, duration) in mappings.items():
         html += f"""
-        <form method='POST'>
-            <label>{gesture}:</label>
-            <input type='text' name='action' value='{action}' required>
-            <input type='hidden' name='gesture' value='{gesture}'>
-            <input type='submit' value='Update'><br><br>
-        </form>
+        <tr>
+            <form method="POST">
+                <td><strong>{gesture}</strong></td>
+                <td><input type="text" name="action" value="{action}" required></td>
+                <td>
+                    <select name="duration">
+                        <option value="press" {'selected' if duration == 'press' else ''}>press</option>
+                        <option value="hold" {'selected' if duration == 'hold' else ''}>hold</option>
+                    </select>
+                </td>
+                <td>
+                    <input type="hidden" name="gesture" value="{gesture}">
+                    <input type="submit" value="Update">
+                </td>
+            </form>
+        </tr>
         """
+
     html += f"""
+    </table>
+
     <br>
-    <form method="POST" action="/reset_mappings/{username}" onsubmit="return confirm('Are you sure you want to reset all mappings to default?');">
-        <input type="submit" value="Revert to Default Mappings" style="background-color:red; color:white; padding:8px; border:none; border-radius:4px; cursor:pointer;">
+    <form method="POST" action="/reset_mappings/{username}" 
+          onsubmit="return confirm('Are you sure you want to reset all mappings to default?');">
+        <input type="submit" value="Revert to Default Mappings" 
+               style="background-color:red; color:white; padding:8px; border:none; border-radius:4px; cursor:pointer;">
     </form>
+
     <br><a href='/start/{username}'>Start Recognition</a>
     """
 
