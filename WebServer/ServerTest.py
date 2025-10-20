@@ -191,7 +191,6 @@ def main_page(username):
 
 #     return html
 
-# Personal Mappings page — view and modify keybind + duration
 @app.route("/mappings/<username>", methods=["GET", "POST"])
 def mappings(username):
     if request.method == "POST":
@@ -201,7 +200,6 @@ def mappings(username):
         Database.update_gesture_mapping(username, gesture, new_action, new_duration)
         return redirect(url_for("mappings", username=username))
 
-    # Get user mappings (now returns {gesture: (action, duration)})
     mappings = Database.get_user_mappings(username)
 
     html = f"""
@@ -238,20 +236,31 @@ def mappings(username):
     <script>
         let listening = false;
         let currentInput = null;
+        let startX = 0, startY = 0;
+        let moveTimeout = null;
 
-        // Called when user clicks "Edit"
         function startListening(gestureId) {{
             if (listening) return;
             listening = true;
             currentInput = document.getElementById('input_' + gestureId);
-            currentInput.value = 'Press any key or click...';
+            currentInput.value = 'Listening... (press key, click, or move mouse)';
+            currentInput.style.backgroundColor = '#ffeeaa';
 
-            // Listen for keyboard or mouse input
+            function stopListening(name) {{
+                listening = false;
+                currentInput.value = name;
+                currentInput.style.backgroundColor = '';
+                window.removeEventListener('keydown', onKey, true);
+                window.removeEventListener('mousedown', onClick, true);
+                window.removeEventListener('mousemove', onMove, true);
+                if (moveTimeout) clearTimeout(moveTimeout);
+            }}
+
             function onKey(e) {{
                 e.preventDefault();
-                const key = e.key === ' ' ? 'space' : e.key.toLowerCase();
-                stopListening();
-                currentInput.value = key;
+                let key = e.key.toLowerCase();
+                if (key === ' ') key = 'space';
+                stopListening(key);
             }}
 
             function onClick(e) {{
@@ -260,18 +269,32 @@ def mappings(username):
                 if (e.button === 0) name = 'mouse_left';
                 else if (e.button === 1) name = 'mouse_middle';
                 else if (e.button === 2) name = 'mouse_right';
-                stopListening();
-                currentInput.value = name;
+                stopListening(name);
             }}
 
-            function stopListening() {{
-                listening = false;
-                window.removeEventListener('keydown', onKey, true);
-                window.removeEventListener('mousedown', onClick, true);
+            function onMove(e) {{
+                if (!startX && !startY) {{
+                    startX = e.clientX;
+                    startY = e.clientY;
+                }}
+                if (moveTimeout) clearTimeout(moveTimeout);
+                moveTimeout = setTimeout(() => {{
+                    let dx = e.clientX - startX;
+                    let dy = e.clientY - startY;
+                    let name = '';
+                    if (Math.abs(dx) > Math.abs(dy)) {{
+                        name = dx > 0 ? 'mouse_right' : 'mouse_left';
+                    }} else {{
+                        name = dy > 0 ? 'mouse_down' : 'mouse_up';
+                    }}
+                    stopListening(name);
+                    startX = startY = 0;
+                }}, 200); // small delay to determine direction
             }}
 
             window.addEventListener('keydown', onKey, true);
             window.addEventListener('mousedown', onClick, true);
+            window.addEventListener('mousemove', onMove, true);
         }}
     </script>
 
@@ -319,7 +342,6 @@ def mappings(username):
     """
 
     return html
-
 
 @app.route("/reset_mappings/<username>", methods=["POST"])
 def reset_mappings(username):
