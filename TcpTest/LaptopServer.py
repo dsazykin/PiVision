@@ -13,7 +13,7 @@ active_key_holds = {}
 # Adjustable sensitivity
 MOVE_DISTANCE = 20     # pixels per step
 MOVE_INTERVAL = 0.03   # seconds between steps
-SCROLL_AMOUNT = 300    # scroll step size
+SCROLL_AMOUNT = 100    # scroll step size
 
 def continuous_mouse_move(direction):
     """Move the mouse continuously in a given direction while held."""
