@@ -127,7 +127,6 @@ def main_page(username):
     return f"""
         <h1>Welcome, {username}</h1>
         <p>Choose an action:</p>
-        <a href="/start/{username}"><button>Start Recognition</button></a><br><br>
         <a href="/mappings/{username}"><button>Edit Gesture Mappings</button></a><br><br>
         <a href="/delete/{username}"><button style='color:red;'>Delete My Account</button></a><br><br>
         <a href="/logout"><button>Log Out</button></a>
@@ -144,15 +143,15 @@ def mappings(username):
     mappings = Database.get_user_mappings(username)
 
     html = f"<h1>Gesture Mappings for {username}</h1>"
-    html += "<form method='POST'>"
     for gesture, action in mappings.items():
         html += f"""
-        <label>{gesture}:</label>
-        <input type='text' name='action' value='{action}' required>
-        <input type='hidden' name='gesture' value='{gesture}'>
-        <input type='submit' value='Update'><br><br>
+        <form method='POST'>
+            <label>{gesture}:</label>
+            <input type='text' name='action' value='{action}' required>
+            <input type='hidden' name='gesture' value='{gesture}'>
+            <input type='submit' value='Update'><br><br>
+        </form>
         """
-    html += "</form>"
     html += f"<br><a href='/start/{username}'>Start Recognition</a>"
     return html
 
