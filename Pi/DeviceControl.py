@@ -7,7 +7,7 @@ import os, time, json, socket
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 # --------------- TCP CONNECTION SETUP ----------------
-possible_ips = ["192.168.5.2", "192.168.178.16"]
+possible_ips = ["192.168.137.1", "192.168.5.2", "192.168.178.16"]
 PORT = 9000
 
 def connect_to_server(possible_ips, port):
@@ -49,7 +49,7 @@ os.makedirs(temp_dir, exist_ok=True)
 FRAME_PATH = os.path.join(temp_dir, "latest.jpg")
 JSON_PATH = os.path.join(temp_dir, "latest.json")
 
-model_path = os.path.join(script_dir, "..", "Models", "gesture_model_v4_handcrop.onnx")
+model_path = os.path.join(project_root, "Models", "gesture_model_v4_handcrop.onnx")
 
 session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
 input_name = session.get_inputs()[0].name
@@ -61,24 +61,26 @@ classes = [
     'rock', 'stop', 'stop_inverted',
     'three', 'three2', 'two_up', 'two_up_inverted'
 ]
-mappings = {"call": "Esc",
-            "dislike": "Scroll down",
-            "fist": "Delete",
-            "four": "Tab",
-            "like": "Scroll up",
-            "mute": "Toggle sound on/off",
-            "ok": "Enter",
-            "one": "Left click",
-            "palm": "Space",
-            "peace": "Windows key",
-            "peace_inverted": "Alt",
-            "rock": "w",
-            "stop": "mouse_up",
-            "stop_inverted": "mouse_down",
-            "three": "mouse_right",
-            "three2": "mouse_left",
-            "two_up": "Right click",
-            "two_up_inverted": "Ctrl"}
+mappings = {
+    "call": ["esc", "press"],                     
+    "dislike": ["scroll_down", "hold"],
+    "fist": ["delete", "press"],
+    "four": ["tab", "press"],
+    "like": ["scroll_up", "hold"],
+    "mute": ["volume_toggle", "press"],
+    "ok": ["enter", "press"],
+    "one": ["left_click", "press"],
+    "palm": ["space", "press"],
+    "peace": ["winleft", "press"],
+    "peace_inverted": ["alt", "hold"],
+    "rock": ["w", "press"],
+    "stop": ["mouse_up", "hold"],
+    "stop_inverted": ["mouse_down", "hold"],
+    "three": ["mouse_right", "hold"],
+    "three2": ["mouse_left", "hold"],
+    "two_up": ["right_click", "press"],
+    "two_up_inverted": ["ctrl", "hold"]
+}
 
 # --------------- MEDIAPIPE SETUP ----------------
 cap = cv2.VideoCapture(0)
@@ -94,6 +96,9 @@ previous_gesture = ""
 gesture_count = 0
 minimum_hold = 10
 hold_gesture = False
+
+hold_input = True
+input_sent = False
 
 # --------------- MAIN LOOP ----------------
 try:
@@ -141,7 +146,12 @@ try:
                 label = classes[pred]
 
                 if(label != previous_gesture):
+                    if(input_sent and mappings.get(label)[1] == "hold"):
+                        msg = "release" + mappings.get(previous_gesture)
+                        send_gesture(msg)
+
                     hold_gesture = False
+                    input_sent = False
                     previous_gesture = label
                     gesture_count = 0
 
@@ -150,7 +160,13 @@ try:
                         gesture_count = 0
                         print("Detected Gesture: " + label)
                         data = {"gesture": label, "confidence": float(top3[0][1])}
-                        send_gesture(mappings.get(label))
+
+                        if(not input_sent):
+                            msg = mappings.get(label)[1] + " " + mappings.get(label)[0]
+                            send_gesture(msg)
+
+                        input_sent = True
+
                 elif(label == previous_gesture):
                     gesture_count += 1
 

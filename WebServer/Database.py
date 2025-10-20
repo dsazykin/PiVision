@@ -104,6 +104,40 @@ def update_gesture_mapping(username, gesture_name, new_action):
         conn.commit()
 
 
+# Reset all a user's gesture mappings back to the system defaults.
+def reset_user_mappings(username):
+    """Reset all a user's gesture mappings back to the system defaults."""
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Get user_id
+            cursor.execute("SELECT user_id FROM users WHERE user_name = ?", (username,))
+            result = cursor.fetchone()
+            if not result:
+                print(f"[ERROR] reset_user_mappings: user {username} not found")
+                return False
+            user_id = result[0]
+
+            # Delete all custom mappings
+            cursor.execute("DELETE FROM gesture_mappings WHERE user_id = ?", (user_id,))
+            conn.commit()  # flush deletion
+
+            # Copy defaults safely
+            cursor.execute("""
+                INSERT OR REPLACE INTO gesture_mappings (user_id, gesture_name, mapped_action)
+                SELECT ?, gesture_name, mapped_action
+                FROM gesture_mappings
+                WHERE user_id IS NULL
+            """, (user_id,))
+
+            conn.commit()
+            return True
+    except Exception as e:
+        print(f"[ERROR] reset_user_mappings failed: {e}")
+        return False
+
+
 def get_user_mappings(user_name):
     """Get all gesture mappings for a user."""
     with get_connection() as conn:
