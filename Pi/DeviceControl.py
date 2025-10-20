@@ -150,7 +150,8 @@ try:
                     print("Detected gesture changed")
                     print("Input sent: ", input_sent)
                     print("Previous Gesture: ", previous_gesture)
-                    print("Hold/Press: ", mappings.get(previous_gesture)[0])
+                    if (previous_gesture != ""):
+                        print("Hold/Press: ", mappings.get(previous_gesture)[0])
                     if(input_sent and mappings.get(label)[1] == "hold"):
                         msg = "release" + " " + mappings.get(previous_gesture)[0]
                         send_gesture(msg)
