@@ -31,7 +31,7 @@ def index():
     Database.initialize_database()
     return """
         <h1>Welcome to the Gesture Control Web App</h1>
-        <p>This web interface lets you manage users and start gesture recognition.</p>
+        <p>This web interface lets you manage users and gesture recognition.</p>
         <a href="/login"><button>Login</button></a>
         <a href="/signup"><button>Sign Up</button></a>
     """
@@ -88,6 +88,7 @@ def test():
     </body></html>"""
     return render_template_string(html)
 
+# TODO: alter this an api Endpoint so it differentiates the json and frame api.
 @app.route('/gesture')
 def gesture():
     try:
@@ -109,29 +110,57 @@ def gen():
         except Exception:
             time.sleep(0.05)
 
-
+# we don't visit this page, it acts as an API andpoint
 @app.route('/stream')
 def stream():
     return Response(gen(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
+# This is the page where users can see the camera feed on the webServer
 @app.route('/video')
 def video():
     return """<html><body style="text-align:center">
               <h2>Processed Gesture Feed</h2>
               <img src="/stream" width="640" height="480">
-              <br><a href="/">Back</a>
+              <br><a href="/login">Back to login page</a>
               </body></html>"""
 
+# This page is the "Homescreen", the page after login.
 @app.route("/main/<username>")
 def main_page(username):
-    return f"""
-        <h1>Welcome, {username}</h1>
-        <p>Choose an action:</p>
-        <a href="/mappings/{username}"><button>Edit Gesture Mappings</button></a><br><br>
-        <a href="/delete/{username}"><button style='color:red;'>Delete My Account</button></a><br><br>
-        <a href="/logout"><button>Log Out</button></a>
+    html = """
+    <html><head><title>Pi Vision Gestures</title>
+    <script>
+    async function updateGesture(){
+        const res = await fetch('/gesture');
+        const data = await res.json();
+        document.getElementById('g').innerText = data.gesture;
+        document.getElementById('c').innerText = (data.confidence*100).toFixed(1)+'%';
+    }
+    setInterval(updateGesture,500); window.onload=updateGesture;
+    </script></head>
     """
+    html += f"""
+        <div class='homepage_container_div'>
+            <div class='homepage_content_div'>
+                <body style="text-align:center;font-family:sans-serif;margin-top:40px">
+                <h1>Welcome, {username}</h1>
+                <p>Choose an action:</p>
+                <a href="/mappings/{username}"><button>Edit Gesture Mappings</button></a><br><br>
+                <a href="/delete/{username}"><button style='color:red;'>Delete My Account</button></a><br><br>
+                <a href="/logout"><button>Log Out</button></a>
+            </div>
+    """
+    html += """
+            <div class='homepage_content_div'>
+                <h1 id="g">Loading...</h1>
+                <p>Confidence: <span id="c">--%</span></p>
+                <a href="/video">View Live Stream ▶</a>
+            </div>
+        </div>
+    </body></html>"""
+    return html 
 
+# Personal Mappings page, you can also change mappings
 @app.route("/mappings/<username>", methods=["GET", "POST"])
 def mappings(username):
     if request.method == "POST":
@@ -155,7 +184,7 @@ def mappings(username):
     html += f"<br><a href='/start/{username}'>Start Recognition</a>"
     return html
 
-    
+# Page for retrieving the database, not accessible through website, type url in yourself.
 @app.route("/database")
 def showDatabase():
     databaseinfo = []
@@ -179,6 +208,7 @@ def showDatabase():
     html += "</div>" # container div
     return html
 
+# Signup page
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
     if request.method == "POST":
@@ -209,7 +239,8 @@ def signup():
         <br><a href="/login">Already have an account? Login here</a>
     """
 
-
+# Only used to delete Users. Currently you're only able to delete your own accout with a button
+# Or you need to type in the url with someone else's name to delete that account.
 @app.route("/delete/<username>")
 def delete_user(username):
     deleted = Database.delete_user(username)
