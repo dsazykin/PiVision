@@ -244,7 +244,8 @@ def create_session(user_id, role):
 def verify_session(token, req_user_name):
     with get_connection() as conn:
         cursor = conn.cursor()
-        user_name = cursor.execute("SELECT user_name FROM sessions WHERE token=?", (token,))
+        user_id = cursor.execute("SELECT user_id FROM sessions WHERE token=?", (token,))
+        user_name = cursor.execute("SELECT user_name FROM users WHERE user_id=?", (user_id,))
     if (user_name == req_user_name):
         return True
     return False
