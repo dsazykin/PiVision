@@ -1,6 +1,7 @@
-import sqlite3, bcrypt
+import sqlite3, bcrypt, os
 
-DB_PATH = "users.db"
+script_dir = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(script_dir, "users.db")
 
 def get_connection():
     return sqlite3.connect(DB_PATH)
@@ -240,6 +241,13 @@ def create_session(user_id, role):
         conn.commit()
     return token
 
+def verify_session(token, req_user_name):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        user_name = cursor.execute("SELECT user_name FROM sessions WHERE token=?", (token,))
+    if (user_name == req_user_name):
+        return True
+    return False
 
 def get_session(token):
     """Return session data if valid, else None."""
@@ -253,6 +261,13 @@ def get_session(token):
         WHERE s.session_token = ? AND s.expires_at > CURRENT_TIMESTAMP
         """, (token,))
         return cursor.fetchone()
+    
+def get_user_token():
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT token FROM sessions")
+        token = cursor.fetchone()
+    return token
     
 def get_all_sessions():
     with get_connection() as conn:

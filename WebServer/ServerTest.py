@@ -223,8 +223,11 @@ def main_page(username):
 #     return html
 
 @app.route("/mappings/<username>", methods=["GET", "POST"])
-@require_login
+#@require_login
 def mappings(username):
+    token = Database.get_user_token()
+    Database.verify_session(token, username)
+
     if request.method == "POST":
         gesture = request.form.get("gesture")
         new_action = request.form.get("action")
