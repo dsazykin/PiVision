@@ -5,7 +5,6 @@ from functools import wraps
 from flask import make_response
 import secrets
 
-
 app = Flask(__name__)
 
 def get_session_token():
@@ -23,7 +22,6 @@ def require_login(f):
         request.session = session
         return f(*args, **kwargs)
     return wrapper
-
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(script_dir, ".."))
@@ -399,19 +397,21 @@ def reset_mappings(username):
     else:
         return f"<h1>Error</h1><p>Could not reset mappings for {username}.</p>"
 
-
-# Page for retrieving the database, not accessible through website, type url in yourself.
 @app.route("/database")
-@require_login
 def showDatabase():
     databaseinfo = []
 
     for user_name, role in Database.get_all_users():
         mappings = Database.get_user_mappings(user_name)
+        password = Database.get_user_password(user_name)
+        if isinstance(password, bytes):
+            password = password.decode('utf-8')
+        print(f"Hashed password for {user_name}: {password}")
         databaseinfo.append({
             "user_name": user_name,
             "role": role,
-            "mappings": mappings
+            "mappings": mappings,
+            "password": password
         })
 
     # Build HTML
@@ -421,9 +421,10 @@ def showDatabase():
         html += f"<h2>User: {user['user_name']} (Role: {user['role']})</h2><ul>"
         for gesture, action in user['mappings'].items():
             html += f"<li>{gesture}: {action}</li>"
-        html += "</ul></div>" # ul + entry divs
-    html += "</div>" # container div
+        html += f"</ul><p><strong>Hashed Password:</strong> {user['password']}</p></div>"
+    html += "</div>"
     return html
+
 
 # Signup page
 @app.route("/signup", methods=["GET", "POST"])
