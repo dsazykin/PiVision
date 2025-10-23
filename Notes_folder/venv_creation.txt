@@ -13,4 +13,4 @@ Click Customize installation → Next → Install
     Select the 3.11 python version which you installed previously
     Once installed, open terminal in your project directory (not in vs code) and run '.venv\Scripts\activate'
     Then install all required packages 'pip install --upgrade pip
-                                        pip install mediapipe opencv-python onnxruntime numpy torch torchvision'
+                                        pip install mediapipe opencv-python onnxruntime numpy torch torchvision flask'

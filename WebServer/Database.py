@@ -238,6 +238,14 @@ def create_session(user_id, role):
         conn.commit()
     return token
 
+def verify_session(token, req_user_id):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        user_name = cursor.execute("SELECT user_name FROM sessions WHERE token=?", (token,))
+        user_id = cursor.execute("SELECT user_id FROM users WHERE user_name=?", (user_name,))
+    if (user_id == req_user_id):
+        return True
+    return False
 
 def get_session(token):
     """Return session data if valid, else None."""
