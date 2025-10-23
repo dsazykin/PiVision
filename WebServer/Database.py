@@ -237,12 +237,11 @@ def create_session(user_id, role):
         conn.commit()
     return token
 
-def verify_session(token, req_user_id):
+def verify_session(token, req_user_name):
     with get_connection() as conn:
         cursor = conn.cursor()
         user_name = cursor.execute("SELECT user_name FROM sessions WHERE token=?", (token,))
-        user_id = cursor.execute("SELECT user_id FROM users WHERE user_name=?", (user_name,))
-    if (user_id == req_user_id):
+    if (user_name == req_user_name):
         return True
     return False
 
@@ -258,6 +257,13 @@ def get_session(token):
         WHERE s.session_token = ? AND s.expires_at > CURRENT_TIMESTAMP
         """, (token,))
         return cursor.fetchone()
+    
+def get_user_token():
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT token FROM sessions")
+        token = cursor.fetchone()
+    return token
     
 def get_all_sessions():
     with get_connection() as conn:
