@@ -265,7 +265,7 @@ def get_session(token):
 def get_user_token():
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT token FROM sessions")
+        cursor.execute("SELECT session_token FROM sessions")
         token = cursor.fetchone()
     return token
     

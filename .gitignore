@@ -1,3 +1,5 @@
 /.venv
 /temp
 /WebServerStream
+/Pi/users.db
+/WebServer/users.db
