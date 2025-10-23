@@ -1,6 +1,7 @@
-import sqlite3, bcrypt
+import sqlite3, bcrypt, os
 
-DB_PATH = "users.db"
+script_dir = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(script_dir, "users.db")
 
 def get_connection():
     return sqlite3.connect(DB_PATH)
