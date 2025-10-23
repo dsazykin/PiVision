@@ -244,11 +244,23 @@ def create_session(user_id, role):
 def verify_session(token, req_user_name):
     with get_connection() as conn:
         cursor = conn.cursor()
-        user_id = cursor.execute("SELECT user_id FROM sessions WHERE token=?", (token,))
-        user_name = cursor.execute("SELECT user_name FROM users WHERE user_id=?", (user_id,))
-    if (user_name == req_user_name):
-        return True
-    return False
+        
+        # Fetch the user_id linked to the given session token
+        cursor.execute("SELECT user_id FROM sessions WHERE session_token=?", (token))
+        result = cursor.fetchone()
+        if not result:
+            return False
+        user_id = result[0]
+
+        # Fetch the username associated with that user_id
+        cursor.execute("SELECT user_name FROM users WHERE user_id=?", (user_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+        user_name = row[0]
+
+        return user_name == req_user_name
+
 
 def get_session(token):
     """Return session data if valid, else None."""
