@@ -230,6 +230,9 @@ def create_session(user_id, role):
 
     with get_connection() as conn:
         cursor = conn.cursor()
+
+        cursor.execute("DELETE FROM sessions")
+
         cursor.execute("""
         INSERT INTO sessions (user_id, session_token, role, expires_at)
         VALUES (?, ?, ?, ?)
@@ -264,8 +267,6 @@ def get_all_sessions():
         """)
         return cursor.fetchall()
 
-
-
 def delete_session(token):
     """Remove a specific session."""
     with get_connection() as conn:
@@ -280,3 +281,44 @@ def cleanup_expired_sessions():
         cursor = conn.cursor()
         cursor.execute("DELETE FROM sessions WHERE expires_at < CURRENT_TIMESTAMP")
         conn.commit()
+
+# NEW: fetch user by id
+def get_user_by_id(user_id):
+    with get_connection() as conn:
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
+        return c.fetchone()
+
+# NEW: mappings by user_id
+def get_user_mappings_by_user_id(user_id):
+    with get_connection() as conn:
+        c = conn.cursor()
+        c.execute("""
+            SELECT gesture_name, mapped_action, duration
+            FROM gesture_mappings
+            WHERE user_id = ?
+        """, (user_id,))
+        rows = c.fetchall()
+        return {g: (a, d) for (g, a, d) in rows}
+
+# NEW: update mapping by user_id
+def update_gesture_mapping_by_user_id(user_id, gesture_name, new_action, new_duration):
+    with get_connection() as conn:
+        c = conn.cursor()
+        c.execute("""
+            UPDATE gesture_mappings
+            SET mapped_action = ?, duration = ?
+            WHERE gesture_name = ? AND user_id = ?
+        """, (new_action, new_duration, gesture_name, user_id))
+        conn.commit()
+
+# NEW: delete user by id (and their mappings)
+def delete_user_by_id(user_id):
+    with get_connection() as conn:
+        c = conn.cursor()
+        c.execute("DELETE FROM gesture_mappings WHERE user_id = ?", (user_id,))
+        c.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
+        deleted = c.rowcount
+        conn.commit()
+        return deleted
