@@ -2,4 +2,6 @@
 /temp
 /WebServerStream
 /Pi/users.db
+/Pi/__pycache__
 /WebServer/users.db
+/WebServer/__pycache__
