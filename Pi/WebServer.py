@@ -181,11 +181,27 @@ def stream():
 
 # This is the page where users can see the camera feed on the webServer
 @app.route('/video')
+@require_login
 def video():
-    return """<html><body style="text-align:center">
+    session = getattr(request, "session", None)
+    username = None
+    if session is not None:
+        try:
+            username = session["user_name"]
+        except (TypeError, KeyError):
+            username = session.get("user_name") if hasattr(session, "get") else None
+
+    if username:
+        target_url = f"/main/{username}"
+        button_label = "Back to home page"
+    else:
+        target_url = "/login"
+        button_label = "Back to login page"
+
+    return f"""<html><body style=\"text-align:center\">
               <h2>Processed Gesture Feed</h2>
-              <img src="/stream" width="640" height="480">
-              <br><a href="/login">Back to login page</a>
+              <img src=\"/stream\" width=\"640\" height=\"480\">
+              <br><a href=\"{target_url}\"><button>{button_label}</button></a>
               </body></html>"""
 
 @app.route("/download-laptopserver")
