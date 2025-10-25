@@ -3,8 +3,10 @@ import sqlite3, bcrypt, os
 script_dir = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(script_dir, "users.db")
 
+
 def get_connection():
     return sqlite3.connect(DB_PATH)
+
 
 def initialize_database():
     """Create all necessary tables if they don't exist."""
@@ -13,38 +15,110 @@ def initialize_database():
 
         # Create User table
         cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_name TEXT UNIQUE NOT NULL,
-            user_password TEXT NOT NULL,
-            role TEXT CHECK(role IN ('user', 'admin')) NOT NULL DEFAULT 'user'
-        )
-        """)
+                       CREATE TABLE IF NOT EXISTS users
+                       (
+                           user_id
+                           INTEGER
+                           PRIMARY
+                           KEY
+                           AUTOINCREMENT,
+                           user_name
+                           TEXT
+                           UNIQUE
+                           NOT
+                           NULL,
+                           user_password
+                           TEXT
+                           NOT
+                           NULL,
+                           role
+                           TEXT
+                           CHECK (
+                           role
+                           IN
+                       (
+                           'user',
+                           'admin'
+                       )) NOT NULL DEFAULT 'user'
+                           )
+                       """)
 
         # Create Gesture mapping table
         cursor.execute("""
-        CREATE TABLE IF NOT EXISTS gesture_mappings (
-            gesture_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            gesture_name TEXT NOT NULL,
-            mapped_action TEXT NOT NULL,
-            duration TEXT NOT NULL,
-            FOREIGN KEY (user_id) REFERENCES users(user_id),
-            UNIQUE(user_id, gesture_name)
-        )
-        """)
+                       CREATE TABLE IF NOT EXISTS gesture_mappings
+                       (
+                           gesture_id
+                           INTEGER
+                           PRIMARY
+                           KEY
+                           AUTOINCREMENT,
+                           user_id
+                           INTEGER,
+                           gesture_name
+                           TEXT
+                           NOT
+                           NULL,
+                           mapped_action
+                           TEXT
+                           NOT
+                           NULL,
+                           duration
+                           TEXT
+                           NOT
+                           NULL,
+                           FOREIGN
+                           KEY
+                       (
+                           user_id
+                       ) REFERENCES users
+                       (
+                           user_id
+                       ),
+                           UNIQUE
+                       (
+                           user_id,
+                           gesture_name
+                       )
+                           )
+                       """)
 
         cursor.execute("""
-        CREATE TABLE IF NOT EXISTS sessions (
-            session_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            session_token TEXT UNIQUE NOT NULL,
-            role TEXT CHECK(role IN ('user', 'admin')) NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-            expires_at TIMESTAMP NOT NULL,
-            FOREIGN KEY (user_id) REFERENCES users(user_id)
-        )
-        """)
+                       CREATE TABLE IF NOT EXISTS sessions
+                       (
+                           session_id
+                           INTEGER
+                           PRIMARY
+                           KEY
+                           AUTOINCREMENT,
+                           user_id
+                           INTEGER
+                           NOT
+                           NULL,
+                           session_token
+                           TEXT
+                           UNIQUE
+                           NOT
+                           NULL,
+                           role
+                           TEXT
+                           CHECK (
+                           role
+                           IN
+                       (
+                           'user',
+                           'admin'
+                       )) NOT NULL,
+                           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                           expires_at TIMESTAMP NOT NULL,
+                           FOREIGN KEY
+                       (
+                           user_id
+                       ) REFERENCES users
+                       (
+                           user_id
+                       )
+                           )
+                       """)
 
         # Default gestures: [mapped_action, duration]
         default_gestures = {
@@ -71,9 +145,10 @@ def initialize_database():
         # Insert defaults only if not already present
         for gesture, (action, duration) in default_gestures.items():
             cursor.execute("""
-            INSERT OR IGNORE INTO gesture_mappings (user_id, gesture_name, mapped_action, duration)
+                           INSERT
+                           OR IGNORE INTO gesture_mappings (user_id, gesture_name, mapped_action, duration)
             VALUES (NULL, ?, ?, ?)
-            """, (gesture, action, duration))
+                           """, (gesture, action, duration))
 
         conn.commit()
 
@@ -82,11 +157,12 @@ def update_gesture_mapping(username, gesture_name, new_action, new_duration):
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            UPDATE gesture_mappings
-            SET mapped_action = ?, duration = ?
-            WHERE gesture_name = ?
-              AND user_id = (SELECT user_id FROM users WHERE user_name = ?)
-        """, (new_action, new_duration, gesture_name, username))
+                       UPDATE gesture_mappings
+                       SET mapped_action = ?,
+                           duration      = ?
+                       WHERE gesture_name = ?
+                         AND user_id = (SELECT user_id FROM users WHERE user_name = ?)
+                       """, (new_action, new_duration, gesture_name, username))
         conn.commit()
 
 
@@ -128,11 +204,11 @@ def get_user_mappings(user_name):
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-        SELECT g.gesture_name, g.mapped_action, g.duration
-        FROM gesture_mappings g
-        JOIN users u ON g.user_id = u.user_id
-        WHERE u.user_name = ?
-        """, (user_name,))
+                       SELECT g.gesture_name, g.mapped_action, g.duration
+                       FROM gesture_mappings g
+                                JOIN users u ON g.user_id = u.user_id
+                       WHERE u.user_name = ?
+                       """, (user_name,))
         rows = cursor.fetchall()
         return {gesture: (action, duration) for gesture, action, duration in rows}
 
@@ -150,11 +226,12 @@ def delete_user(user_name):
 
         # Delete gesture mappings first
         cursor.execute("""
-        DELETE FROM gesture_mappings
-        WHERE user_id = (
-            SELECT user_id FROM users WHERE user_name = ?
-        )
-        """, (user_name,))
+                       DELETE
+                       FROM gesture_mappings
+                       WHERE user_id = (SELECT user_id
+                                        FROM users
+                                        WHERE user_name = ?)
+                       """, (user_name,))
 
         # Delete user
         cursor.execute("DELETE FROM users WHERE user_name = ?", (user_name,))
@@ -193,18 +270,19 @@ def add_user(user_name, user_password, role="user"):
         hashed_pw = bcrypt.hashpw(user_password.encode("utf-8"), bcrypt.gensalt())
 
         cursor.execute("""
-        INSERT INTO users (user_name, user_password, role)
-        VALUES (?, ?, ?)
-        """, (user_name, hashed_pw, role))
+                       INSERT INTO users (user_name, user_password, role)
+                       VALUES (?, ?, ?)
+                       """, (user_name, hashed_pw, role))
         user_id = cursor.lastrowid
 
         # Copy default gestures with duration
         cursor.execute("""
-        INSERT OR IGNORE INTO gesture_mappings (user_id, gesture_name, mapped_action, duration)
-        SELECT ?, gesture_name, mapped_action, duration
-        FROM gesture_mappings
-        WHERE user_id IS NULL
-        """, (user_id,))
+                       INSERT
+                       OR IGNORE INTO gesture_mappings (user_id, gesture_name, mapped_action, duration)
+                       SELECT ?, gesture_name, mapped_action, duration
+                       FROM gesture_mappings
+                       WHERE user_id IS NULL
+                       """, (user_id,))
 
         conn.commit()
 
@@ -219,9 +297,11 @@ def verify_user(username, password):
             return False
         stored_hash = row[0]
         return bcrypt.checkpw(password.encode("utf-8"), stored_hash)
-    
+
+
 import secrets
 from datetime import datetime, timedelta
+
 
 # --- SESSION MANAGEMENT ---
 def create_session(user_id, role):
@@ -231,12 +311,36 @@ def create_session(user_id, role):
 
     with get_connection() as conn:
         cursor = conn.cursor()
+
+        cursor.execute("DELETE FROM sessions")
+
         cursor.execute("""
-        INSERT INTO sessions (user_id, session_token, role, expires_at)
-        VALUES (?, ?, ?, ?)
-        """, (user_id, token, role, expires_at))
+                       INSERT INTO sessions (user_id, session_token, role, expires_at)
+                       VALUES (?, ?, ?, ?)
+                       """, (user_id, token, role, expires_at))
         conn.commit()
     return token
+
+
+def verify_session(token, req_user_name):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # Fetch the user_id linked to the given session token
+        cursor.execute("SELECT user_id FROM sessions WHERE session_token=?", (token))
+        result = cursor.fetchone()
+        if not result:
+            return False
+        user_id = result[0]
+
+        # Fetch the username associated with that user_id
+        cursor.execute("SELECT user_name FROM users WHERE user_id=?", (user_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+        user_name = row[0]
+
+        return user_name == req_user_name
 
 
 def get_session(token):
@@ -245,26 +349,39 @@ def get_session(token):
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute("""
-        SELECT s.*, u.user_name
-        FROM sessions s
-        JOIN users u ON s.user_id = u.user_id
-        WHERE s.session_token = ? AND s.expires_at > CURRENT_TIMESTAMP
-        """, (token,))
+                       SELECT s.*, u.user_name
+                       FROM sessions s
+                                JOIN users u ON s.user_id = u.user_id
+                       WHERE s.session_token = ?
+                         AND s.expires_at > CURRENT_TIMESTAMP
+                       """, (token,))
         return cursor.fetchone()
-    
+
+
+def get_user_token():
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT session_token FROM sessions")
+        token = cursor.fetchone()
+    return token
+
+
 def get_all_sessions():
     with get_connection() as conn:
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute("""
-        SELECT s.session_id, s.session_token, s.role, s.created_at, s.expires_at,
-               u.user_name
-        FROM sessions s
-        JOIN users u ON s.user_id = u.user_id
-        ORDER BY s.created_at DESC
-        """)
+                       SELECT s.session_id,
+                              s.session_token,
+                              s.role,
+                              s.created_at,
+                              s.expires_at,
+                              u.user_name
+                       FROM sessions s
+                                JOIN users u ON s.user_id = u.user_id
+                       ORDER BY s.created_at DESC
+                       """)
         return cursor.fetchall()
-
 
 
 def delete_session(token):
@@ -281,3 +398,50 @@ def cleanup_expired_sessions():
         cursor = conn.cursor()
         cursor.execute("DELETE FROM sessions WHERE expires_at < CURRENT_TIMESTAMP")
         conn.commit()
+
+
+# NEW: fetch user by id
+def get_user_by_id(user_id):
+    with get_connection() as conn:
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
+        return c.fetchone()
+
+
+# NEW: mappings by user_id
+def get_user_mappings_by_user_id(user_id):
+    with get_connection() as conn:
+        c = conn.cursor()
+        c.execute("""
+                  SELECT gesture_name, mapped_action, duration
+                  FROM gesture_mappings
+                  WHERE user_id = ?
+                  """, (user_id,))
+        rows = c.fetchall()
+        return {g: (a, d) for (g, a, d) in rows}
+
+
+# NEW: update mapping by user_id
+def update_gesture_mapping_by_user_id(user_id, gesture_name, new_action, new_duration):
+    with get_connection() as conn:
+        c = conn.cursor()
+        c.execute("""
+                  UPDATE gesture_mappings
+                  SET mapped_action = ?,
+                      duration      = ?
+                  WHERE gesture_name = ?
+                    AND user_id = ?
+                  """, (new_action, new_duration, gesture_name, user_id))
+        conn.commit()
+
+
+# NEW: delete user by id (and their mappings)
+def delete_user_by_id(user_id):
+    with get_connection() as conn:
+        c = conn.cursor()
+        c.execute("DELETE FROM gesture_mappings WHERE user_id = ?", (user_id,))
+        c.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
+        deleted = c.rowcount
+        conn.commit()
+        return deleted
