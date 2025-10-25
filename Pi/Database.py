@@ -326,8 +326,11 @@ def verify_session(token, req_user_name):
     with get_connection() as conn:
         cursor = conn.cursor()
 
+        if not token:
+            return False
+
         # Fetch the user_id linked to the given session token
-        cursor.execute("SELECT user_id FROM sessions WHERE session_token=?", (token))
+        cursor.execute("SELECT user_id FROM sessions WHERE session_token=?", (token,))
         result = cursor.fetchone()
         if not result:
             return False
