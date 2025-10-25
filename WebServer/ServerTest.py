@@ -1,9 +1,17 @@
-from flask import Flask, request, redirect, url_for, Response, jsonify, render_template_string
-import Database, threading, json, os, cv2, time, pyautogui
-
+from flask import (
+    Flask,
+    request,
+    redirect,
+    url_for,
+    Response,
+    jsonify,
+    render_template_string,
+    send_file,
+    abort,
+    make_response
+)
+import Database, json, os, cv2, time
 from functools import wraps
-from flask import make_response
-import secrets
 
 app = Flask(__name__)
 
@@ -31,6 +39,7 @@ os.makedirs(temp_dir, exist_ok=True)
 
 FRAME_PATH = os.path.join(temp_dir, "latest.jpg")
 JSON_PATH = os.path.join(temp_dir, "latest.json")
+LAPTOP_SERVER_PATH = os.path.join(project_root, "TcpTest", "LaptopServer.py")
 
 @app.after_request
 def add_global_css(response: Response):
@@ -154,6 +163,41 @@ def video():
               <br><a href="/login">Back to login page</a>
               </body></html>"""
 
+@app.route("/download-laptopserver")
+@require_login
+def download_laptop_server_page():
+    exists = os.path.exists(LAPTOP_SERVER_PATH)
+    status_message = (
+        "LaptopServer.py is available for download."
+        if exists
+        else "LaptopServer.py could not be found on the server."
+    )
+
+    download_button = (
+        f"<a href='{url_for('download_laptop_server_file')}'><button>Download LaptopServer.py</button></a>"
+        if exists
+        else ""
+    )
+
+    return f"""
+        <h1>Download Laptop Server Script</h1>
+        <p>{status_message}</p>
+        {download_button}
+        <br><br>
+        <a href='{url_for('main_page', username=request.session['user_name'])}'><button>Back to Home</button></a>
+    """
+
+@app.route("/download-laptopserver/file")
+@require_login
+def download_laptop_server_file():
+    if not os.path.exists(LAPTOP_SERVER_PATH):
+        abort(404)
+    return send_file(
+        LAPTOP_SERVER_PATH,
+        as_attachment=True,
+        download_name="LaptopServer.py",
+    )
+
 # This page is the "Homescreen", the page after login.
 @app.route("/main/<username>")
 @require_login
@@ -177,7 +221,8 @@ def main_page(username):
                 <h1>Welcome, {username}</h1>
                 <p>Choose an action:</p>
                 <a href="/mappings/{username}"><button>Edit Gesture Mappings</button></a><br><br>
-                <a href="/delete/{username}"><button style='color:red;'>Delete My Account</button></a><br><br>
+                <a href='{url_for('download_laptop_server_page')}'><button style='background:green;'>Download Connection Software</button></a><br><br>
+                <a href="/delete/{username}"><button style='background:red;'>Delete My Account</button></a><br><br>
                 <a href="/logout"><button>Log Out</button></a>
             </div>
     """
