@@ -18,12 +18,18 @@ app = Flask(__name__)
 def get_session_token():
     return request.cookies.get("session_token")
 
+def get_active_session():
+    """Return the active session for the current request, if any."""
+    token = get_session_token()
+    if not token:
+        return None
+    return Database.get_session(token)
+
 def require_login(f):
     """Decorator to require a valid session."""
     @wraps(f)
     def wrapper(*args, **kwargs):
-        token = get_session_token()
-        session = Database.get_session(token) if token else None
+        session = get_active_session()
         if not session:
             return redirect(url_for("login"))
         # Pass session info into the route
@@ -68,6 +74,10 @@ def index():
 # --- LOGIN PAGE ---
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    existing_session = get_active_session()
+    if existing_session:
+        return redirect(url_for("main_page", username=existing_session["user_name"]))
+
     if request.method == "POST":
         username = request.form.get("username")
         password = request.form.get("password")
@@ -97,6 +107,42 @@ def login():
         <br><a href="/signup">Don't have an account? Sign up here</a>
     """
 
+
+# Signup page
+@app.route("/signup", methods=["GET", "POST"])
+def signup():
+    existing_session = get_active_session()
+    if existing_session:
+        return redirect(url_for("main_page", username=existing_session["user_name"]))
+
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
+
+        try:
+            Database.add_user(user_name=username, user_password=password)
+            return f"""
+                <h1>Signup Successful</h1>
+                <p>User '{username}' created successfully.</p>
+                <a href="/login"><button>Go to Login</button></a>
+            """
+        except ValueError as e:
+            return f"<h1>Error</h1><p>{str(e)}</p><a href='/signup'>Try Again</a>"
+        except Exception as e:
+            return f"<h1>Unexpected Error</h1><p>{str(e)}</p>"
+
+    return """
+        <h1>Sign Up</h1>
+        <form method="POST">
+            <label>Username:</label><br>
+            <input type="text" name="username" required><br><br>
+            <label>Password:</label><br>
+            <input type="password" name="password" required><br><br>
+            <input type="submit" value="Create Account">
+        </form>
+        <br><a href="/login">Already have an account? Login here</a>
+    """
+
 @app.route("/logout")
 def logout():
     token = get_session_token()
@@ -105,26 +151,6 @@ def logout():
     resp = make_response(redirect(url_for("login")))
     resp.delete_cookie("session_token")
     return resp
-
-@app.route("/testing")
-def test():
-    html = """
-    <html><head><title>Pi Vision Gestures</title>
-    <script>
-    async function updateGesture(){
-        const res = await fetch('/gesture');
-        const data = await res.json();
-        document.getElementById('g').innerText = data.gesture;
-        document.getElementById('c').innerText = (data.confidence*100).toFixed(1)+'%';
-    }
-    setInterval(updateGesture,500); window.onload=updateGesture;
-    </script></head>
-    <body style="text-align:center;font-family:sans-serif;margin-top:40px">
-      <h1 id="g">Loading...</h1>
-      <p>Confidence: <span id="c">--%</span></p>
-      <a href="/video">View Live Stream ▶</a>
-    </body></html>"""
-    return render_template_string(html)
 
 # TODO: alter this an api Endpoint so it differentiates the json and frame api.
 @app.route('/gesture')
@@ -201,6 +227,10 @@ def download_laptop_server_file():
 @app.route("/main/<username>")
 @require_login
 def main_page(username):
+    session_user = request.session["user_name"]
+    if session_user != username:
+        return redirect(url_for("main_page", username=session_user))
+
     html = """
     <html><head><title>Pi Vision Gestures</title>
     <script>
@@ -267,10 +297,11 @@ def main_page(username):
 #     return html
 
 @app.route("/mappings/<username>", methods=["GET", "POST"])
-#@require_login
+@require_login
 def mappings(username):
-    token = Database.get_user_token()
-    Database.verify_session(token, username)
+    session_user = request.session["user_name"]
+    if session_user != username:
+        return redirect(url_for("mappings", username=session_user))
 
     if request.method == "POST":
         gesture = request.form.get("gesture")
@@ -437,7 +468,12 @@ def mappings(username):
 
 
 @app.route("/reset_mappings/<username>", methods=["POST"])
+@require_login
 def reset_mappings(username):
+    session_user = request.session["user_name"]
+    if session_user != username:
+        return redirect(url_for("main_page", username=session_user))
+
     success = Database.reset_user_mappings(username)
     if success:
         return redirect(url_for("mappings", username=username))
@@ -471,38 +507,6 @@ def showDatabase():
         html += f"</ul><p><strong>Hashed Password:</strong> {user['password']}</p></div>"
     html += "</div>"
     return html
-
-
-# Signup page
-@app.route("/signup", methods=["GET", "POST"])
-def signup():
-    if request.method == "POST":
-        username = request.form.get("username")
-        password = request.form.get("password")
-
-        try:
-            Database.add_user(user_name=username, user_password=password)
-            return f"""
-                <h1>Signup Successful</h1>
-                <p>User '{username}' created successfully.</p>
-                <a href="/login"><button>Go to Login</button></a>
-            """
-        except ValueError as e:
-            return f"<h1>Error</h1><p>{str(e)}</p><a href='/signup'>Try Again</a>"
-        except Exception as e:
-            return f"<h1>Unexpected Error</h1><p>{str(e)}</p>"
-
-    return """
-        <h1>Sign Up</h1>
-        <form method="POST">
-            <label>Username:</label><br>
-            <input type="text" name="username" required><br><br>
-            <label>Password:</label><br>
-            <input type="password" name="password" required><br><br>
-            <input type="submit" value="Create Account">
-        </form>
-        <br><a href="/login">Already have an account? Login here</a>
-    """
 
 @app.route("/sessions", methods=["GET"])
 def show_sessions():
@@ -580,10 +584,14 @@ def show_sessions():
 
     return html
 
-# Only used to delete Users. Currently you're only able to delete your own accout with a button
-# Or you need to type in the url with someone else's name to delete that account.
+# Deletes your user
 @app.route("/delete/<username>")
+@require_login
 def delete_user(username):
+    session_user = request.session["user_name"]
+    if session_user != username:
+        return redirect(url_for("main_page", username=session_user))
+
     deleted = Database.delete_user(username)
     if deleted == 0:
         return f"<h1>Deletion Failed</h1><p style='color:red;'>User '{username}' not found.</p>"
