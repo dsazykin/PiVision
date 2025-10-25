@@ -25,6 +25,7 @@ class SessionManager:
             token = request.cookies.get("session_token")
             session = Database.get_session(token) if token else None
             g.active_session = session
+            setattr(request, "session", session)
 
     @staticmethod
     def get_active_session() -> Optional[dict[str, Any]]:

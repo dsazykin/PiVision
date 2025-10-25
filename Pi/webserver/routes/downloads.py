@@ -15,31 +15,34 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
 
     @bp.route("/download-laptopserver")
     @require_login
-    def download_page() -> str:
-        session = get_request_session(request)
-        username = session.get("user_name") if session else ""
+    def download_page():
         exists = os.path.exists(LAPTOP_SERVER_PATH)
         status_message = (
             "LaptopServer.py is available for download."
             if exists
             else "LaptopServer.py could not be found on the server."
         )
+
         download_button = (
-            f"<a href='{url_for('downloads.download_file')}'><button>Download LaptopServer.py</button></a>"
+            f"<a href='{url_for('downloads.download_file')}'><button>Download "
+            f"LaptopServer.py</button></a>"
             if exists
             else ""
         )
+
         return f"""
-        <h1>Download Laptop Server Script</h1>
-        <p>{status_message}</p>
-        {download_button}
-        <br><br>
-        <a href='{url_for('main.main_page', username=username)}'><button>Back to Home</button></a>
+            <h1>Download Laptop Server Script</h1>
+            <p>{status_message}</p>
+            {download_button}
+            <br><br>
+            <a href='
+{url_for('main.main_page', username=request.session['user_name'])}'><button>Back to 
+Home</button></a>
         """
 
     @bp.route("/download-laptopserver/file")
     @require_login
-    def download_file() -> Response:
+    def download_file():
         if not os.path.exists(LAPTOP_SERVER_PATH):
             abort(404)
         return send_file(
