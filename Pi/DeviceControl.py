@@ -209,5 +209,8 @@ except KeyboardInterrupt:
     print("\nStopped by user.")
 finally:
     cap.release()
-    os.remove(JSON_PATH)
-    os.remove(FRAME_PATH)
+    sock.close()
+    empty_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    cv2.imwrite(FRAME_PATH, empty_frame)  # Clear the frame
+    with open(JSON_PATH, 'w') as f:
+        json.dump({"gesture": "None", "confidence": 0.0}, f)

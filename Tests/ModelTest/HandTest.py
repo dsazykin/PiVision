@@ -144,5 +144,8 @@ while True:
 
 cap.release()
 cv2.destroyAllWindows()
-os.remove(JSON_PATH)
-os.remove(FRAME_PATH)
+
+empty_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+cv2.imwrite(FRAME_PATH, empty_frame)  # Clear the frame
+with open(JSON_PATH, 'w') as f:
+    json.dump({"gesture": "None", "confidence": 0.0}, f)
