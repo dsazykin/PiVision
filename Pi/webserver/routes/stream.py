@@ -4,7 +4,7 @@ from __future__ import annotations
 from flask import Blueprint, Response
 
 from ..middleware import SessionManager
-from ..streaming import gesture_response, stream_frames
+from ..streaming import stream_gestures, stream_frames
 
 
 def create_blueprint(_: SessionManager) -> Blueprint:
@@ -12,7 +12,7 @@ def create_blueprint(_: SessionManager) -> Blueprint:
 
     @bp.route("/gesture")
     def gesture() -> Response:
-        return gesture_response()
+        return Response(stream_gestures(), mimetype="text/event-stream")
 
     @bp.route("/stream")
     def stream() -> Response:

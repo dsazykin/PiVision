@@ -60,13 +60,12 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         return f"""
         <html><head><title>Pi Vision Gestures</title>
         <script>
-        async function updateGesture(){{
-            const res = await fetch('/gesture');
-            const data = await res.json();
+        const eventSource = new EventSource("/gesture");
+        eventSource.onmessage = function(event) {{
+            const data = JSON.parse(event.data);
             document.getElementById('g').innerText = data.gesture;
             document.getElementById('c').innerText = (data.confidence*100).toFixed(1)+'%';
-        }}
-        setInterval(updateGesture,500); window.onload=updateGesture;
+        }};
         </script></head>
         <div class='homepage_container_div'>
             <div class='homepage_content_div'>
@@ -96,24 +95,24 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             if isinstance(password, bytes):
                 password = password.decode("utf-8")
             databaseinfo.append(
-                {
+                {{
                     "user_name": user_name,
                     "role": role,
                     "mappings": mappings,
                     "password": password,
-                }
+                }}
             )
 
         html = "<h1>Database Page</h1><div class='db_container_div'>"
         for user in databaseinfo:
             html += "<div class='db_entry_div'>"
             html += (
-                f"<h2>User: {user['user_name']} (Role: {user['role']})</h2><ul>"
+                f"<h2>User: {{user['user_name']}} (Role: {{user['role']}})</h2><ul>"
             )
             for gesture, action in user["mappings"].items():
-                html += f"<li>{gesture}: {action}</li>"
+                html += f"<li>{{gesture}}: {{action}}</li>"
             html += (
-                f"</ul><p><strong>Hashed Password:</strong> {user['password']}</p></div>"
+                f"</ul><p><strong>Hashed Password:</strong> {{user['password']}}</p></div>"
             )
         html += "</div>"
         return html
@@ -125,48 +124,48 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             return "<h2>No active sessions found.</h2>"
 
         rows = "".join(
-            f"<tr><td>{s['session_id']}</td><td>{s['user_name']}</td>"
-            f"<td>{s['role']}</td><td class='token-cell'>{s['session_token']}</td>"
-            f"<td>{s['created_at']}</td><td>{s['expires_at']}</td></tr>"
+            f"<tr><td>{{s['session_id']}}</td><td>{{s['user_name']}}</td>"
+            f"<td>{{s['role']}}</td><td class='token-cell'>{{s['session_token']}}</td>"
+            f"<td>{{s['created_at']}}</td><td>{{s['expires_at']}}</td></tr>"
             for s in sessions
         )
 
         return """
         <h1>Active Sessions</h1>
         <style>
-            table {
+            table {{
                 border-collapse: collapse;
                 margin-top: 20px;
                 width: 90%;
                 font-family: Arial, sans-serif;
-            }
-            th, td {
+            }}
+            th, td {{
                 border: 1px solid #ccc;
                 padding: 10px;
                 text-align: center;
-            }
-            th {
+            }}
+            th {{
                 background-color: #4CAF50;
                 color: white;
-            }
-            tr:nth-child(even) {
+            }}
+            tr:nth-child(even) {{
                 background-color: #f9f9f9;
-            }
-            .token-cell {
+            }}
+            .token-cell {{
                 max-width: 320px;
                 overflow-wrap: anywhere;
                 font-family: monospace;
                 color: #333;
-            }
-            h1 {
+            }}
+            h1 {{
                 font-family: Arial, sans-serif;
                 text-align: center;
-            }
-            body {
+            }}
+            body {{
                 display: flex;
                 flex-direction: column;
                 align-items: center;
-            }
+            }}
         </style>
         <table>
             <tr>
@@ -195,10 +194,10 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         deleted = Database.delete_user(username)
         if deleted == 0:
             return (
-                f"<h1>Deletion Failed</h1><p style='color:red;'>User '{username}' not found.</p>"
+                f"<h1>Deletion Failed</h1><p style='color:red;'>User '{{username}}' not found.</p>"
             )
         return (
-            f"<h1>Account Deleted</h1><p>User '{username}' has been removed.</p>"
+            f"<h1>Account Deleted</h1><p>User '{{username}}' has been removed.</p>"
             "<a href='/'>Return Home</a>"
         )
 
