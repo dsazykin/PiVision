@@ -1,6 +1,6 @@
 /.venv
 /temp
-/WebServerStream
+*/WebServerStream
 *.db
 /.idea
 */__pycache__
