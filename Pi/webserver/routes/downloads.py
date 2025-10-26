@@ -6,32 +6,32 @@ import os
 from flask import Blueprint, Response, abort, request, send_file, url_for
 
 from ..middleware import SessionManager, get_request_session
-from ..paths import LAPTOP_SERVER_PATH
+from ..paths import CONNECTION_SOFTWARE_PATH
 
 
 def create_blueprint(session_manager: SessionManager) -> Blueprint:
     bp = Blueprint("downloads", __name__)
     require_login = session_manager.require_login
 
-    @bp.route("/download-laptopserver")
+    @bp.route("/download-software")
     @require_login
     def download_page():
-        exists = os.path.exists(LAPTOP_SERVER_PATH)
+        exists = os.path.exists(CONNECTION_SOFTWARE_PATH)
         status_message = (
-            "LaptopServer.py is available for download."
+            "PiVisionConnectionSoftware.py is available for download."
             if exists
-            else "LaptopServer.py could not be found on the server."
+            else "PiVisionConnectionSoftware.py could not be found on the server."
         )
 
         download_button = (
             f"<a href='{url_for('downloads.download_file')}'><button>Download "
-            f"LaptopServer.py</button></a>"
+            f"PiVisionConnectionSoftware.py</button></a>"
             if exists
             else ""
         )
 
         return f"""
-            <h1>Download Laptop Server Script</h1>
+            <h1>Download PiVisionConnectionSoftware Script</h1>
             <p>{status_message}</p>
             {download_button}
             <br><br>
@@ -40,15 +40,15 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
 Home</button></a>
         """
 
-    @bp.route("/download-laptopserver/file")
+    @bp.route("/download-software/file")
     @require_login
     def download_file():
-        if not os.path.exists(LAPTOP_SERVER_PATH):
+        if not os.path.exists(CONNECTION_SOFTWARE_PATH):
             abort(404)
         return send_file(
-            LAPTOP_SERVER_PATH,
+            CONNECTION_SOFTWARE_PATH,
             as_attachment=True,
-            download_name="LaptopServer.py",
+            download_name="PiVisionConnectionSoftware.py",
         )
 
     return bp
