@@ -6,7 +6,8 @@ from pathlib import Path
 import os
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-model_path = os.path.join(script_dir, "..", "Models", "gesture_model_v3.onnx")
+project_root = os.path.abspath(os.path.join(script_dir, ".."))
+model_path = os.path.join(project_root, "..", "Models", "gesture_model_v3.onnx")
 
 # Create inference session
 session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])

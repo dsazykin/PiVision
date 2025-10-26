@@ -18,7 +18,7 @@ os.makedirs(temp_dir, exist_ok=True)
 FRAME_PATH = os.path.join(temp_dir, "latest.jpg")
 JSON_PATH = os.path.join(temp_dir, "latest.json")
 
-model_path = os.path.join(script_dir, "..", "Models", "gesture_model_v3.onnx")
+model_path = os.path.join(project_root, "..", "Models", "gesture_model_v3.onnx")
 
 # Create inference session
 session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])

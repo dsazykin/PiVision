@@ -16,8 +16,10 @@ os.makedirs(temp_dir, exist_ok=True)
 FRAME_PATH = os.path.join(temp_dir, "latest.jpg")
 JSON_PATH = os.path.join(temp_dir, "latest.json")
 
+model_path = os.path.join(project_root, "..", "Models", "gesture_model_v3.onnx")
+
 # Create inference session
-session = ort.InferenceSession("Models/gesture_model_v4_handcrop.onnx", providers=["CPUExecutionProvider"])
+session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
 
 # Print input/output details
 print("Model inputs:", session.get_inputs())
@@ -54,8 +56,8 @@ mp_hands = mp.solutions.hands.Hands(
     max_num_hands=1, min_detection_confidence=0.5, min_tracking_confidence=0.5)
 mp_draw = mp.solutions.drawing_utils
 
-# frame_count = 0
-# PROCESS_EVERY = 10
+frame_count = 0
+PROCESS_EVERY = 1
 
 previous_gesture = ""
 gesture_count = 0
@@ -69,27 +71,18 @@ while True:
     if not ret:
         break
 
-    # frame_count += 1
-    # if frame_count % PROCESS_EVERY != 0:
-    #     continue
+    frame_count += 1
+    if frame_count % PROCESS_EVERY != 0:
+        continue
 
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = mp_hands.process(rgb)
 
     if results.multi_hand_landmarks:
         for hand_landmarks in results.multi_hand_landmarks:
-            h, w, _ = frame.shape
-            xs = [int(p.x * w) for p in hand_landmarks.landmark]
-            ys = [int(p.y * h) for p in hand_landmarks.landmark]
-            margin = 30
-            x1 = max(min(xs)-margin, 0)
-            y1 = max(min(ys)-margin, 0)
-            x2 = min(max(xs)+margin, w)
-            y2 = min(max(ys)+margin, h)
-            hand_img = frame[y1:y2, x1:x2]
 
             # Preprocess for model
-            img = cv2.resize(hand_img, (224,224))
+            img = cv2.resize(frame, (224,224))
             img = img.astype(np.float32) / 255.0
             img = (img - [0.485,0.456,0.406]) / [0.229,0.224,0.225]
             img = np.transpose(img, (2,0,1))[np.newaxis, :].astype(np.float32)
@@ -125,6 +118,7 @@ while True:
                 y = y0 + rank * dy
                 cv2.putText(frame, text, (10, y),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
+
 
     cv2.imwrite(FRAME_PATH, frame)
 
