@@ -7,7 +7,6 @@ import Database
 
 from ..middleware import SessionManager
 
-
 def create_blueprint(session_manager: SessionManager) -> Blueprint:
     bp = Blueprint("auth", __name__)
 
@@ -69,11 +68,19 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                 return "<h1>Error</h1><p>Username and password are required.</p>"
             try:
                 Database.add_user(user_name=username, user_password=password)
-                return f"""
-                    <h1>Signup Successful</h1>
-                    <p>User '{username}' created successfully.</p>
-                    <a href="/login"><button>Go to Login</button></a>
-                """
+                user = Database.get_user(username)
+                token = Database.create_session(user["user_id"], user["role"])
+                response = make_response(
+                    redirect(url_for("main.main_page", username=username))
+                )
+                response.set_cookie(
+                    "session_token",
+                    token,
+                    httponly=True,
+                    samesite="Lax",
+                    max_age=7200,
+                )
+                return response
             except ValueError as exc:
                 return (
                     f"<h1>Error</h1><p>{str(exc)}</p>"
