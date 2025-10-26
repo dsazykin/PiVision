@@ -144,3 +144,5 @@ while True:
 
 cap.release()
 cv2.destroyAllWindows()
+os.remove(JSON_PATH)
+os.remove(FRAME_PATH)

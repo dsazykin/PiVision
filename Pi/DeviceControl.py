@@ -209,3 +209,5 @@ except KeyboardInterrupt:
     print("\nStopped by user.")
 finally:
     cap.release()
+    os.remove(JSON_PATH)
+    os.remove(FRAME_PATH)

@@ -137,17 +137,23 @@ def gesture():
         data = {"gesture": "None", "confidence": 0.0}
     return jsonify(data)
 def gen():
+    previous_frame = None
     while True:
         try:
-            frame = cv2.imread(FRAME_PATH)
-            if frame is None:
-                time.sleep(0.05)
+            current_frame = cv2.imread(FRAME_PATH)
+            if current_frame is None or (
+                    previous_frame is not None and (current_frame == previous_frame).all()):
+                time.sleep(0.1)
                 continue
-            _, jpeg = cv2.imencode('.jpg', frame)
-            yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' +
-                   jpeg.tobytes() + b'\r\n')
+            print("Frame read")
+            success, jpeg = cv2.imencode(".jpg", current_frame)
+            previous_frame = current_frame
+            if not success:
+                time.sleep(3)
+                continue
+            yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + jpeg.tobytes() + b"\r\n"
         except Exception:
-            time.sleep(0.05)
+            time.sleep(3)
 
 # we don't visit this page, it acts as an API andpoint
 @app.route('/stream')

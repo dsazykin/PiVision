@@ -20,13 +20,16 @@ def read_gesture_payload() -> dict[str, object]:
 
 
 def stream_frames() -> Iterator[bytes]:
+    previous_frame = None
     while True:
         try:
-            frame = cv2.imread(FRAME_PATH)
-            if frame is None:
-                time.sleep(3)
+            current_frame = cv2.imread(FRAME_PATH)
+            if current_frame is None or (
+                    previous_frame is not None and (current_frame == previous_frame).all()):
+                time.sleep(0.1)
                 continue
-            success, jpeg = cv2.imencode(".jpg", frame)
+            success, jpeg = cv2.imencode(".jpg", current_frame)
+            previous_frame = current_frame
             if not success:
                 time.sleep(3)
                 continue
