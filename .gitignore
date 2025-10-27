@@ -3,4 +3,7 @@
 */WebServerStream
 *.db
 /.idea
-*/__pycache__
+Pi/WebServer/__pycache__
+Pi/WebServer/routes/__pycache__
+Pi/__pycache__
+WebServer/__pycache__
