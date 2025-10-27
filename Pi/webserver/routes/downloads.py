@@ -18,20 +18,20 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
     def download_page():
         exists = os.path.exists(CONNECTION_SOFTWARE_PATH)
         status_message = (
-            "PiVisionConnectionSoftware.py is available for download."
+            "PiVision Connection Software is available for download."
             if exists
-            else "PiVisionConnectionSoftware.py could not be found on the server."
+            else "PiVision Connection Software could not be found on the server."
         )
 
         download_button = (
             f"<a href='{url_for('downloads.download_file')}'><button>Download "
-            f"PiVisionConnectionSoftware.py</button></a>"
+            f"PiVision Connection Software</button></a>"
             if exists
             else ""
         )
 
         return f"""
-            <h1>Download PiVisionConnectionSoftware Script</h1>
+            <h1>Download PiVision Connection Software</h1>
             <p>{status_message}</p>
             {download_button}
             <br><br>
@@ -48,7 +48,7 @@ Home</button></a>
         return send_file(
             CONNECTION_SOFTWARE_PATH,
             as_attachment=True,
-            download_name="PiVisionConnectionSoftware.py",
+            download_name="PiVision Connection Software.exe",
         )
 
     return bp
