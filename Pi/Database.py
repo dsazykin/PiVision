@@ -30,17 +30,7 @@ def initialize_database():
                            user_password
                            TEXT
                            NOT
-                           NULL,
-                           role
-                           TEXT
-                           CHECK (
-                           role
-                           IN
-                       (
-                           'user',
-                           'admin'
-                       )) NOT NULL DEFAULT 'user'
-                           )
+                           NULL
                        """)
 
         # Create Gesture mapping table
@@ -99,15 +89,6 @@ def initialize_database():
                            UNIQUE
                            NOT
                            NULL,
-                           role
-                           TEXT
-                           CHECK (
-                           role
-                           IN
-                       (
-                           'user',
-                           'admin'
-                       )) NOT NULL,
                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
                            expires_at TIMESTAMP NOT NULL,
                            FOREIGN KEY
@@ -216,7 +197,7 @@ def get_user_mappings(user_name):
 def get_all_users():
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT user_name, role FROM users")
+        cursor.execute("SELECT user_name FROM users")
         return cursor.fetchall()
 
 
@@ -260,7 +241,7 @@ def hash_password(password):
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
 
 
-def add_user(user_name, user_password, role="user"):
+def add_user(user_name, user_password):
     with get_connection() as conn:
         cursor = conn.cursor()
 
@@ -273,9 +254,9 @@ def add_user(user_name, user_password, role="user"):
         hashed_pw = hash_password(user_password)
 
         cursor.execute("""
-                       INSERT INTO users (user_name, user_password, role)
-                       VALUES (?, ?, ?)
-                       """, (user_name, hashed_pw, role))
+                       INSERT INTO users (user_name, user_password)
+                       VALUES (?, ?)
+                       """, (user_name, hashed_pw))
         user_id = cursor.lastrowid
 
         # Copy default gestures with duration
@@ -307,7 +288,7 @@ from datetime import datetime, timedelta
 
 
 # --- SESSION MANAGEMENT ---
-def create_session(user_id, role):
+def create_session(user_id):
     """Create a new session and return its token."""
     token = secrets.token_hex(32)
     expires_at = (datetime.utcnow() + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
@@ -318,9 +299,9 @@ def create_session(user_id, role):
         cursor.execute("DELETE FROM sessions")
 
         cursor.execute("""
-                       INSERT INTO sessions (user_id, session_token, role, expires_at)
-                       VALUES (?, ?, ?, ?)
-                       """, (user_id, token, role, expires_at))
+                       INSERT INTO sessions (user_id, session_token, expires_at)
+                       VALUES (?, ?, ?)
+                       """, (user_id, token, expires_at))
         conn.commit()
     return token
 
@@ -379,7 +360,6 @@ def get_all_sessions():
         cursor.execute("""
                        SELECT s.session_id,
                               s.session_token,
-                              s.role,
                               s.created_at,
                               s.expires_at,
                               u.user_name
