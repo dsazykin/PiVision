@@ -2,7 +2,10 @@ import socket
 import threading
 import time
 import queue
+import os
+import json
 import tkinter as tk
+from pathlib import Path
 from tkinter.scrolledtext import ScrolledText
 
 import pyautogui
@@ -10,9 +13,48 @@ import pyautogui
 HOST = "0.0.0.0"
 PORT = 9000
 
-
 log_queue = queue.Queue()
 
+def get_config_path():
+    """Return the platform-specific path to the PiVision config file."""
+    # Windows → AppData\Roaming\PiVision
+    # Linux/Mac → ~/.config/PiVision
+    if os.name == "nt":
+        base_dir = Path(os.getenv("APPDATA", Path.home() / "AppData" / "Roaming"))
+    else:
+        base_dir = Path.home() / ".config"
+    pivision_dir = base_dir / "PiVision"
+    pivision_dir.mkdir(parents=True, exist_ok=True)
+    return pivision_dir / "config.json"
+
+CONFIG_PATH = get_config_path()
+
+def load_json():
+    """Load settings from JSON file or use defaults if missing."""
+    defaults = {
+        "MOVE_DISTANCE": 20,
+        "MOVE_INTERVAL": 0.03,
+        "SCROLL_AMOUNT": 100
+    }
+
+    if os.path.exists(CONFIG_PATH):
+        try:
+            with open(CONFIG_PATH, "r") as f:
+                data = json.load(f)
+                defaults.update(data)
+        except Exception as e:
+            print(f"Warning: Failed to load config, using defaults: {e}")
+
+    return defaults
+
+def save_json(settings):
+    """Save settings to JSON file."""
+    try:
+        with open(CONFIG_PATH, "w") as f:
+            json.dump(settings, f, indent=4)
+        print(f"Settings saved to {CONFIG_PATH}")
+    except Exception as e:
+        print(f"Error saving config: {e}")
 
 def log_event(message, status=None):
     """Log a message to the console and queue it for the GUI."""
@@ -147,7 +189,6 @@ def perform_action(msg):
     except Exception as e:
         log_event(f"Error performing action '{msg}': {e}")
 
-
 def reset_active_holds():
     """Release any held keys or mouse actions when the connection ends."""
     for key in list(active_mouse_holds.keys()):
@@ -160,7 +201,6 @@ def reset_active_holds():
             except Exception as exc:
                 log_event(f"Error releasing key '{key}': {exc}")
         active_key_holds[key] = False
-
 
 def handle_client(conn, addr):
     log_event(f"Connected by {addr}", status=f"Connected to {addr}")
@@ -183,7 +223,6 @@ def handle_client(conn, addr):
     reset_active_holds()
     log_event("Connection closed", status="Waiting for connection...")
 
-
 def run_server():
     log_event("Starting server thread")
     try:
@@ -204,22 +243,62 @@ def run_server():
     except Exception as exc:
         log_event(f"Server error: {exc}", status="Server stopped")
 
-
 def start_gui():
     root = tk.Tk()
     root.title("Laptop Server Monitor")
 
     status_var = tk.StringVar(value="Starting server...")
 
+    # === STATUS BAR ===
     status_label = tk.Label(root, textvariable=status_var, font=("Segoe UI", 12, "bold"))
     status_label.pack(padx=10, pady=(10, 5), anchor="w")
 
+    # === SETTINGS BUTTON ===
+    def open_settings():
+        settings_window = tk.Toplevel(root)
+        settings_window.title("Settings")
+
+        tk.Label(settings_window, text="Mouse move distance (pixels):").grid(row=0, column=0, sticky="w", padx=5, pady=5)
+        move_dist_var = tk.IntVar(value=MOVE_DISTANCE)
+        tk.Entry(settings_window, textvariable=move_dist_var, width=10).grid(row=0, column=1, padx=5, pady=5)
+
+        tk.Label(settings_window, text="Move interval (seconds):").grid(row=1, column=0, sticky="w", padx=5, pady=5)
+        move_interval_var = tk.DoubleVar(value=MOVE_INTERVAL)
+        tk.Entry(settings_window, textvariable=move_interval_var, width=10).grid(row=1, column=1, padx=5, pady=5)
+
+        tk.Label(settings_window, text="Scroll amount (pixels per step):").grid(row=2, column=0, sticky="w", padx=5, pady=5)
+        scroll_amount_var = tk.IntVar(value=SCROLL_AMOUNT)
+        tk.Entry(settings_window, textvariable=scroll_amount_var, width=10).grid(row=2, column=1, padx=5, pady=5)
+
+        def save_settings():
+            global MOVE_DISTANCE, MOVE_INTERVAL, SCROLL_AMOUNT
+            MOVE_DISTANCE = move_dist_var.get()
+            MOVE_INTERVAL = move_interval_var.get()
+            SCROLL_AMOUNT = scroll_amount_var.get()
+
+            # Save persistently
+            save_json({
+                "MOVE_DISTANCE": MOVE_DISTANCE,
+                "MOVE_INTERVAL": MOVE_INTERVAL,
+                "SCROLL_AMOUNT": SCROLL_AMOUNT
+            })
+
+            log_event(
+                f"Settings updated and saved: MOVE_DISTANCE={MOVE_DISTANCE}, MOVE_INTERVAL={MOVE_INTERVAL}, SCROLL_AMOUNT={SCROLL_AMOUNT}")
+            settings_window.destroy()
+
+        tk.Button(settings_window, text="Save", command=save_settings).grid(row=3, column=0, columnspan=2, pady=10)
+
+    tk.Button(root, text="⚙ Settings", command=open_settings).pack(padx=10, pady=(0, 10), anchor="e")
+
+    # === LOG WINDOW ===
     log_frame = tk.Frame(root)
     log_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
 
     log_text = ScrolledText(log_frame, wrap=tk.WORD, height=20, state=tk.DISABLED)
     log_text.pack(fill=tk.BOTH, expand=True)
 
+    # === QUEUE PROCESSING ===
     def process_queue():
         while True:
             try:
@@ -246,6 +325,12 @@ def start_gui():
 
 
 if __name__ == "__main__":
+    user_settings = load_json()
+
+    MOVE_DISTANCE = user_settings["MOVE_DISTANCE"]
+    MOVE_INTERVAL = user_settings["MOVE_INTERVAL"]
+    SCROLL_AMOUNT = user_settings["SCROLL_AMOUNT"]
+
     server_thread = threading.Thread(target=run_server, daemon=True)
     server_thread.start()
     start_gui()
