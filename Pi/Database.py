@@ -255,6 +255,9 @@ def get_user_password(username):
         cursor.execute("SELECT user_password FROM users WHERE user_name=?", (username,))
         row = cursor.fetchone()
         return row[0] if row else None
+    
+def hash_password(password):
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
 
 
 def add_user(user_name, user_password, role="user"):
@@ -267,7 +270,7 @@ def add_user(user_name, user_password, role="user"):
             raise ValueError(f"User '{user_name}' already exists.")
 
         # Hash password
-        hashed_pw = bcrypt.hashpw(user_password.encode("utf-8"), bcrypt.gensalt())
+        hashed_pw = hash_password(user_password)
 
         cursor.execute("""
                        INSERT INTO users (user_name, user_password, role)
