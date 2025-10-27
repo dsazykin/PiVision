@@ -165,6 +165,8 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             <input type="submit" value="Revert to Default Mappings"
                    style="background-color:red; color:white; padding:8px; border:none; border-radius:4px; cursor:pointer;">
         </form>
+
+        <a href='/main/{username}'><button style='padding:10px 20px; border:none; background-color:#4CAF50; color:white; border-radius:5px; cursor:pointer;'>Back Home</button></a>
         """
 
     @bp.route("/reset_mappings/<username>", methods=["POST"])

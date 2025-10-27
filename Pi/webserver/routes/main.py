@@ -95,24 +95,24 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             if isinstance(password, bytes):
                 password = password.decode("utf-8")
             databaseinfo.append(
-                {{
+                {
                     "user_name": user_name,
                     "role": role,
                     "mappings": mappings,
                     "password": password,
-                }}
+                }
             )
 
         html = "<h1>Database Page</h1><div class='db_container_div'>"
         for user in databaseinfo:
             html += "<div class='db_entry_div'>"
             html += (
-                f"<h2>User: {{user['user_name']}} (Role: {{user['role']}})</h2><ul>"
+                f"<h2>User: {user['user_name']} (Role: {user['role']})</h2><ul>"
             )
             for gesture, action in user["mappings"].items():
-                html += f"<li>{{gesture}}: {{action}}</li>"
+                html += f"<li>{gesture}: {action}</li>"
             html += (
-                f"</ul><p><strong>Hashed Password:</strong> {{user['password']}}</p></div>"
+                f"</ul><p><strong>Hashed Password:</strong> {user['password']}</p></div>"
             )
         html += "</div>"
         return html
@@ -124,9 +124,9 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             return "<h2>No active sessions found.</h2>"
 
         rows = "".join(
-            f"<tr><td>{{s['session_id']}}</td><td>{{s['user_name']}}</td>"
-            f"<td>{{s['role']}}</td><td class='token-cell'>{{s['session_token']}}</td>"
-            f"<td>{{s['created_at']}}</td><td>{{s['expires_at']}}</td></tr>"
+            f"<tr><td>{s['session_id']}</td><td>{s['user_name']}</td>"
+            f"<td>{s['role']}</td><td class='token-cell'>{s['session_token']}</td>"
+            f"<td>{s['created_at']}</td><td>{s['expires_at']}</td></tr>"
             for s in sessions
         )
 
