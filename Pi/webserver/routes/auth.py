@@ -23,7 +23,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             password = request.form.get("password")
             if username and password and Database.verify_user(username, password):
                 user = Database.get_user(username)
-                token = Database.create_session(user["user_id"], user["role"])
+                token = Database.create_session(user["user_id"])
                 response = make_response(
                     redirect(url_for("main.main_page", username=username))
                 )
