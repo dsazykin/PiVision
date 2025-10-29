@@ -445,3 +445,16 @@ def delete_user_by_id(user_id):
         deleted = c.rowcount
         conn.commit()
         return deleted
+
+
+def get_all_usernames() -> list[str]:
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor() 
+            cursor.execute("SELECT user_name FROM users ORDER BY user_name ASC") 
+            usernames = [row[0] for row in cursor.fetchall()]
+            return usernames
+    except Exception as e:
+        print(f"Database error fetching usernames: {e}")
+        # Return an empty list on failure to prevent crashing the web app
+        return []

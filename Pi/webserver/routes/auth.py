@@ -5,6 +5,7 @@ from flask import Blueprint, Response, make_response, redirect, request, url_for
 
 import Database
 import json, os
+import threading
 
 from ..send_to_pi import send_mappings_to_pi
 
@@ -19,7 +20,8 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
     bp = Blueprint("auth", __name__)
 
     @bp.route("/login", methods=["GET", "POST"])
-    def login() -> Response | str:
+    def login_step1() -> Response | str:
+        
         active_session = session_manager.get_active_session()
         if active_session:
             return redirect(
@@ -27,14 +29,63 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             )
 
         if request.method == "POST":
+            username = request.form.get("username_select") 
+            if username:
+                return redirect(url_for("auth.login_step2", username=username))
+            return "Please select a username."
+
+        # GET request - display all usernames in a dropdown
+        all_users = Database.get_all_usernames() 
+        user_options = "".join(f'<option value="{u}">{u}</option>' for u in all_users)
+        
+        return f"""
+            <h1>Select Username</h1>
+            <form method="POST">
+                <label>Username:</label><br>
+                <select name="username_select" required>
+                    {user_options}
+                </select><br><br>
+                <input type="submit" value="Next">
+            </form>
+            <br><a href="/signup">Don't have an account? Sign up here</a>
+        """
+
+    @bp.route("/login/password", methods=["GET", "POST"])
+    def login_step2() -> Response | str:
+        
+        active_session = session_manager.get_active_session()
+        if active_session:
+            return redirect(
+                url_for("main.main_page", username=active_session["user_name"])
+            )
+
+        # Handle GET request to show password form
+        if request.method == "GET":
+            username = request.args.get("username")
+            if not username:
+                return redirect(url_for("auth.login_step1")) #Go back if no username
+                
+            return f"""
+                <h1>Login: Enter Password for {username}</h1>
+                <form method="POST">
+                    <input type="hidden" name="username" value="{username}">
+                    <label>Password:</label><br>
+                    <input type="password" name="password" required><br><br>
+                    <input type="submit" value="Login">
+                </form>
+                <br><a href="/login">Go back and change username</a>
+            """
+
+        # Handle POST request to verify password
+        if request.method == "POST":
             username = request.form.get("username")
             password = request.form.get("password")
+    
             if username and password and Database.verify_user(username, password):
-
                 user_mappings = Database.get_user_mappings(username)
-                send_mappings_to_pi(user_mappings)
-                # Update standard mappings to the Pi (DeviceControl.py)
-
+                thread = threading.Thread(target=send_mappings_to_pi, args=(user_mappings,))
+                thread.start()
+                
                 user = Database.get_user(username)
                 token = Database.create_session(user["user_id"])
                 response = make_response(
@@ -52,24 +103,14 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                         json.dump({"loggedIn": True}, f)
                 except Exception as e:
                     print("Error writing JSON: ", e)
+                    
                 return response
+                
             return (
                 "<h1>Login Failed</h1>"
-                "<p style='color:red;'>Invalid username or password.</p>"
-                "<a href='/login'>Try again</a>"
+                "<p style='color:red;'>Invalid password.</p>"
+                f"<a href='/login/password?username={username}'>Try again</a>"
             )
-
-        return """
-            <h1>Login</h1>
-            <form method="POST">
-                <label>Username:</label><br>
-                <input type="text" name="username" required><br><br>
-                <label>Password:</label><br>
-                <input type="password" name="password" required><br><br>
-                <input type="submit" value="Login">
-            </form>
-            <br><a href="/signup">Don't have an account? Sign up here</a>
-        """
 
     @bp.route("/signup", methods=["GET", "POST"])
     def signup() -> Response | str:
@@ -109,7 +150,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                     f"<h1>Error</h1><p>{str(exc)}</p>"
                     "<a href='/signup'>Try Again</a>"
                 )
-            except Exception as exc:  # pragma: no cover - unexpected error path
+            except Exception as exc: 
                 return f"<h1>Unexpected Error</h1><p>{str(exc)}</p>"
 
         return """
@@ -129,7 +170,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         token = request.cookies.get("session_token")
         if token:
             Database.delete_session(token)
-        response = make_response(redirect(url_for("auth.login")))
+        response = make_response(redirect(url_for("auth.login_step1")))
         response.delete_cookie("session_token")
         try:
             with open(BOOLEAN_PATH, 'w') as f:
