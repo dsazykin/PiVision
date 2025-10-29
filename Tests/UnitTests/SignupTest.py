@@ -4,33 +4,54 @@ import Pi.Database as db
 username = "TestAccount"
 password = "TestAccount"
 
+
 class TestSignup(unittest.TestCase):
 
     def setUp(self):
+        # full reset
         db.initialize_database()
+
+        # remove "testusers" if in database.
+        existing_user = db.get_user(username)
+        if existing_user:
+            db.delete_user(username)
         return super().setUp()
 
     def test_valid_signup(self):
-        # Signup the test account
+        """Verify that signup creates a user and stores a hashed password."""
         db.add_user(username, password)
 
-        # assert that {username} now has an entry in the users table
-        self.assertTrue(db.get_user(username))
-
-        # assert the password in the database is the same as the provided password
-        self.assertEqual(db.get_user_password(username), db.hash_password(password))
-
-    def test_has_session(self, username):
-        # Signup the test account
-        db.add_user(username, password)
-
-        # assert that {username} has an entry in the sessions table
+        # Assert that {username} now has an entry in the users table
         user = db.get_user(username)
-        db.create_session(user["user_id"])
+        self.assertIsNotNone(user, "User should exist after signup")
 
+        # Assert the password stored is a bcrypt hash (not the plaintext)
+        stored_pw = db.get_user_password(username)
+        self.assertNotEqual(stored_pw, password)
+        self.assertTrue(stored_pw.startswith(b"$2b$") or stored_pw.startswith(b"$2a$"),
+                        "Stored password should be a bcrypt hash")
+
+    def test_has_session(self):
+        """Verify that creating a session actually adds it to the sessions table."""
+        # Add the user
+        db.add_user(username, password)
+        user = db.get_user(username)
+
+        # Create a session for that user
+        token = db.create_session(user["user_id"])
+        self.assertIsNotNone(token, "create_session() should return a session token")
+
+        # Retrieve all sessions
         sessions = db.get_all_sessions()
-        user_session = sessions.__contains__(username)
-        self.assertTrue(user_session)
+        self.assertGreater(len(sessions), 0, "There should be at least one session")
+
+        # Check that one of the sessions belongs to our username
+        user_has_session = any(row["user_name"] == username for row in sessions)
+        self.assertTrue(user_has_session, f"User {username} should have a session")
+
+        # verify that token exists in the table
+        tokens = [row["session_token"] for row in sessions]
+        self.assertIn(token, tokens, "Returned token should match one in database")
 
 
 if __name__ == '__main__':
