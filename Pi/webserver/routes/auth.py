@@ -7,7 +7,7 @@ import Database
 import json, os
 import threading
 
-from ..send_to_pi import send_mappings_to_pi
+from ..UpdateMappings import update_gestures
 
 from ..middleware import SessionManager
 
@@ -83,7 +83,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
     
             if username and password and Database.verify_user(username, password):
                 user_mappings = Database.get_user_mappings(username)
-                thread = threading.Thread(target=send_mappings_to_pi, args=(user_mappings,))
+                thread = threading.Thread(target=update_gestures, args=(user_mappings,))
                 thread.start()
                 
                 user = Database.get_user(username)
@@ -127,8 +127,13 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                 return "<h1>Error</h1><p>Username and password are required.</p>"
             try:
                 Database.add_user(user_name=username, user_password=password)
+
                 user = Database.get_user(username)
                 token = Database.create_session(user["user_id"])
+
+                updated_map = Database.get_user_mappings(username)
+                update_gestures(updated_map)
+
                 response = make_response(
                     redirect(url_for("main.main_page", username=username))
                 )
@@ -139,6 +144,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                     samesite="Lax",
                     max_age=7200,
                 )
+
                 try:
                     with open(BOOLEAN_PATH, 'w') as f:
                         json.dump({"loggedIn": True}, f)

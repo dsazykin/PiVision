@@ -8,7 +8,7 @@ os.makedirs(temp_dir, exist_ok=True)
 
 MAPPINGS_PATH = os.path.join(temp_dir, "mappings.json")
 
-def send_mappings_to_pi(mappings: dict):
+def update_gestures(mappings: dict):
     """Write updated mappings to a JSON file for DeviceControl to detect."""
     try:
         os.makedirs(os.path.dirname(MAPPINGS_PATH), exist_ok=True)

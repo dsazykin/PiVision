@@ -5,7 +5,7 @@ from flask import Blueprint, Response, redirect, request, url_for
 
 import Database
 
-from ..send_to_pi import send_mappings_to_pi
+from ..UpdateMappings import update_gestures
 
 from ..middleware import SessionManager, get_request_session
 
@@ -33,7 +33,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                 )
 
                 updated_map = Database.get_user_mappings(username)
-                send_mappings_to_pi(updated_map)
+                update_gestures(updated_map)
 
             return redirect(url_for("mappings.mappings", username=username))
 
@@ -185,6 +185,10 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             return redirect(url_for("main.main_page", username=session_user))
 
         success = Database.reset_user_mappings(username)
+
+        updated_map = Database.get_user_mappings(username)
+        update_gestures(updated_map)
+
         if success:
             return redirect(url_for("mappings.mappings", username=username))
         return f"<h1>Error</h1><p>Could not reset mappings for {username}.</p>"
