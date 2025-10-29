@@ -157,7 +157,7 @@ def update_gesture_mapping(username, gesture_name, new_action, new_duration):
                            duration      = ?
                        WHERE gesture_name = ?
                          AND user_id = (SELECT user_id FROM users WHERE user_name = ?)
-                       """, (new_action, new_duration, gesture_name, (username,)))
+                       """, (new_action, new_duration, gesture_name, username))
         conn.commit()
 
 
@@ -445,6 +445,7 @@ def delete_user_by_id(user_id):
         deleted = c.rowcount
         conn.commit()
         return deleted
+<<<<<<< HEAD
 
 
 def get_all_usernames() -> list[str]:
@@ -458,3 +459,5 @@ def get_all_usernames() -> list[str]:
         print(f"Database error fetching usernames: {e}")
         # Return an empty list on failure to prevent crashing the web app
         return []
+=======
+>>>>>>> eeb2fb6e18c4ce9af616a04ef1e6fd5639b228e6
