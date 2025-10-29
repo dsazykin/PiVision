@@ -194,12 +194,13 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             return redirect(url_for("main.main_page", username=session_user))
 
         deleted = Database.delete_user(username)
+        safe = h.escape(username)
         if deleted == 0:
             return (
-                f"<h1>Deletion Failed</h1><p style='color:red;'>User '{{username}}' not found.</p>"
+                f"<h1>Deletion Failed</h1><p style='color:red;'>User '{safe}' not found.</p>"
             )
         return (
-            f"<h1>Account Deleted</h1><p>User '{{username}}' has been removed.</p>"
+            f"<h1>Account Deleted</h1><p>User '{safe}' has been removed.</p>"
             "<a href='/'>Return Home</a>"
         )
 
