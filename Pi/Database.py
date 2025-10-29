@@ -144,7 +144,7 @@ def update_gesture_mapping(username, gesture_name, new_action, new_duration):
                            duration      = ?
                        WHERE gesture_name = ?
                          AND user_id = (SELECT user_id FROM users WHERE user_name = ?)
-                       """, (new_action, new_duration, gesture_name, username))
+                       """, (new_action, new_duration, gesture_name, (username,)))
         conn.commit()
 
 
@@ -155,7 +155,7 @@ def reset_user_mappings(username):
             cursor = conn.cursor()
 
             # Get user_id
-            cursor.execute("SELECT user_id FROM users WHERE user_name = ?", username)
+            cursor.execute("SELECT user_id FROM users WHERE user_name = ?", (username,))
             result = cursor.fetchone()
             if not result:
                 print(f"[ERROR] reset_user_mappings: user {username} not found")
@@ -190,7 +190,7 @@ def get_user_mappings(user_name):
                        FROM gesture_mappings g
                                 JOIN users u ON g.user_id = u.user_id
                        WHERE u.user_name = ?
-                       """, user_name)
+                       """, (user_name,))
         rows = cursor.fetchall()
         return {gesture: (action, duration) for gesture, action, duration in rows}
 
@@ -227,14 +227,14 @@ def get_user(username):
     with get_connection() as conn:
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM users WHERE user_name=?", username)
+        cursor.execute("SELECT * FROM users WHERE user_name=?", (username,))
         return cursor.fetchone()
 
 
 def get_user_password(username):
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT user_password FROM users WHERE user_name=?", username)
+        cursor.execute("SELECT user_password FROM users WHERE user_name=?", (username,))
         row = cursor.fetchone()
         return row[0] if row else None
     
@@ -276,7 +276,7 @@ def verify_user(username, password):
     """Check if username exists and password matches."""
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT user_password FROM users WHERE user_name=?", username)
+        cursor.execute("SELECT user_password FROM users WHERE user_name=?", (username,))
         row = cursor.fetchone()
         if not row:
             return False
