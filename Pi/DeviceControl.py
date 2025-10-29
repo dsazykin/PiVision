@@ -5,7 +5,7 @@ import torchvision.transforms as T
 import mediapipe as mp
 import os, time, json, socket
 import threading
-import inotify.adapter
+import inotify.adapters
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 # --------------- TCP CONNECTION SETUP ----------------

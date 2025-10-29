@@ -157,7 +157,7 @@ def update_gesture_mapping(username, gesture_name, new_action, new_duration):
                            duration      = ?
                        WHERE gesture_name = ?
                          AND user_id = (SELECT user_id FROM users WHERE user_name = ?)
-                       """, (new_action, new_duration, gesture_name, (username,)))
+                       """, (new_action, new_duration, gesture_name, username))
         conn.commit()
 
 
