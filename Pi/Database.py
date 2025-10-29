@@ -134,6 +134,19 @@ def initialize_database():
 
         conn.commit()
 
+def delete_database():
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+                       DROP TABLE users, sessions, gesture_mappings
+                       """)
+        conn.commit()
+
+
+def reset_database():
+    delete_database()
+    initialize_database()
+
 
 def update_gesture_mapping(username, gesture_name, new_action, new_duration):
     with get_connection() as conn:
