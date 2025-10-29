@@ -5,6 +5,7 @@ import torchvision.transforms as T
 import mediapipe as mp
 import os, time, json, socket
 import threading
+import inotify.adapter
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 # --------------- TCP CONNECTION SETUP ----------------
@@ -28,9 +29,6 @@ def connect_to_server(possible_ips, port):
 # Connect before starting gesture recognition
 sock = connect_to_server(possible_ips, PORT)
 
-listener_thread = threading.Thread(target=listen_for_updates, args=(sock,), daemon=True)
-listener_thread.start()
-
 def send_gesture(label):    
     try:
         sock.sendall((label + "\n").encode())
@@ -44,23 +42,6 @@ def send_gesture(label):
         new_sock.sendall((label + "\n").encode())
         return new_sock
     return sock
-
-def update_mappings(new_map):
-    global mappings
-    mappings = new_map
-    print("Mappings updated from server")
-
-def listen_for_updates(sock):
-    while True:
-        try:
-            raw = sock.recv(4096).decode().strip()
-            if raw.startswith("UPDATE_MAPPINGS"):
-                json_str = raw.replace("UPDATE_MAPPINGS", "").strip()
-                new_map = json.loads(json_str)
-                update_mappings(new_map)
-        except Exception as e:
-            print("Mapping update listener error:", e)
-            time.sleep(1)
 
 # --------------- MODEL SETUP ----------------
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -104,9 +85,31 @@ mappings = {
     "two_up_inverted": ["ctrl", "hold"]
 }
 
-#Goal: mapping from the database to Pi (in DeviceControl.py)
-# Get it from the database at the start
-# Update the database when change and also update the Pi
+# Watch for mapping updates (using inotify)
+def watch_for_mapping_updates_inotify():
+    global mappings
+    mappings_file = os.path.join(temp_dir, "mappings_update.json")
+
+    # Ensure directory exists
+    os.makedirs(temp_dir, exist_ok=True)
+
+    i = inotify.adapters.Inotify()
+    i.add_watch(temp_dir)
+    print("Watching for mapping file updates via inotify...")
+
+    for event in i.event_gen(yield_nones=False):
+        (_, type_names, path, filename) = event
+        if filename == "mappings_update.json" and "IN_CLOSE_WRITE" in type_names:
+            try:
+                with open(mappings_file, "r") as f:
+                    new_map = json.load(f)
+                mappings = new_map
+                print("Gesture mappings reloaded from file.")
+            except Exception as e:
+                print("Error reading updated mappings:", e)
+
+# Start inotify watcher in a background thread
+threading.Thread(target=watch_for_mapping_updates_inotify, daemon=True).start()
 
 # --------------- MEDIAPIPE SETUP ----------------
 cap = cv2.VideoCapture(0)
