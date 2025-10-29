@@ -31,6 +31,7 @@ def initialize_database():
                            TEXT
                            NOT
                            NULL
+                           )
                        """)
 
         # Create Gesture mapping table

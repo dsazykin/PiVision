@@ -5,8 +5,9 @@ from flask import Blueprint, Response, redirect, request, url_for
 
 import Database
 
-from ..middleware import SessionManager, get_request_session
+from ..send_to_pi import send_mappings_to_pi
 
+from ..middleware import SessionManager, get_request_session
 
 def create_blueprint(session_manager: SessionManager) -> Blueprint:
     bp = Blueprint("mappings", __name__)
@@ -30,6 +31,10 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                 Database.update_gesture_mapping(
                     username, gesture, new_action, new_duration
                 )
+
+                updated_map = Database.get_user_mappings(username)
+                send_mappings_to_pi(updated_map)
+
             return redirect(url_for("mappings.mappings", username=username))
 
         mappings_data = Database.get_user_mappings(username)
