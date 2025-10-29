@@ -87,7 +87,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             try:
                 Database.add_user(user_name=username, user_password=password)
                 user = Database.get_user(username)
-                token = Database.create_session(user["user_id"], user["role"])
+                token = Database.create_session(user["user_id"])
                 response = make_response(
                     redirect(url_for("main.main_page", username=username))
                 )
