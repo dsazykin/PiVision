@@ -51,6 +51,7 @@ os.makedirs(temp_dir, exist_ok=True)
 
 FRAME_PATH = os.path.join(temp_dir, "latest.jpg")
 JSON_PATH = os.path.join(temp_dir, "latest.json")
+MAPPINGS_PATH = os.path.join(temp_dir, "mappings.json")
 
 model_path = os.path.join(project_root, "Models", "gesture_model_v4_handcrop.onnx")
 
@@ -88,25 +89,24 @@ mappings = {
 # Watch for mapping updates (using inotify)
 def watch_for_mapping_updates_inotify():
     global mappings
-    mappings_file = os.path.join(temp_dir, "mappings_update.json")
-
-    # Ensure directory exists
-    os.makedirs(temp_dir, exist_ok=True)
 
     i = inotify.adapters.Inotify()
-    i.add_watch(temp_dir)
+
+    mappings_file = os.path.join(temp_dir, "mappings.json")
+    i.add_watch(mappings_file)
+
     print("Watching for mapping file updates via inotify...")
 
     for event in i.event_gen(yield_nones=False):
         (_, type_names, path, filename) = event
-        if filename == "mappings_update.json" and "IN_CLOSE_WRITE" in type_names:
+        if "IN_CLOSE_WRITE" in type_names:
             try:
                 with open(mappings_file, "r") as f:
                     new_map = json.load(f)
                 mappings = new_map
-                print("Gesture mappings reloaded from file.")
+                print("🔄 Mappings reloaded (file changed).")
             except Exception as e:
-                print("Error reading updated mappings:", e)
+                print("⚠️ Failed to reload mappings:", e)
 
 # Start inotify watcher in a background thread
 threading.Thread(target=watch_for_mapping_updates_inotify, daemon=True).start()

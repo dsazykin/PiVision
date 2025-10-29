@@ -1,18 +1,19 @@
-import socket, json
+import json, os
 
-PI_HOST = "192.168.137.1"   # same IP Pi connects to
-PI_PORT = 9000
+# Shared location where both the Flask app and DeviceControl can access
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(script_dir, "..", ".."))
+temp_dir = os.path.join(project_root, "WebServerStream")
+os.makedirs(temp_dir, exist_ok=True)
+
+MAPPINGS_PATH = os.path.join(temp_dir, "mappings.json")
 
 def send_mappings_to_pi(mappings: dict):
-    """Sends new gesture mappings to the Pi for live update."""
+    """Write updated mappings to a JSON file for DeviceControl to detect."""
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((PI_HOST, PI_PORT))
-
-        message = "UPDATE_MAPPINGS " + json.dumps(mappings)
-        s.sendall(message.encode())
-        s.close()
-        print("Sent mapping update to Pi")
-
+        os.makedirs(os.path.dirname(MAPPINGS_PATH), exist_ok=True)
+        with open(MAPPINGS_PATH, "w") as f:
+            json.dump(mappings, f)
+        print("Wrote updated mappings to shared file.")
     except Exception as e:
-        print("Could not send mappings to Pi:", e)
+        print("Failed to write mappings:", e)
