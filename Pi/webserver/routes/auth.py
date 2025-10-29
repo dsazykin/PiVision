@@ -11,7 +11,7 @@ from ..send_to_pi import send_mappings_to_pi
 from ..middleware import SessionManager
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.abspath(os.path.join(script_dir, ".."))
+project_root = os.path.abspath(os.path.join(script_dir, "..", "..", ".."))
 temp_dir = os.path.join(project_root, "WebServerStream")
 BOOLEAN_PATH = os.path.join(temp_dir, "boolean.json")
 
