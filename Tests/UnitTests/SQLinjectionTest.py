@@ -13,11 +13,16 @@ class TestSignup(unittest.TestCase):
         # full reset
         db.initialize_database()
 
-        # remove "testusers" if in database.
+        # remove users and injections if in database.
         existing_user = db.get_user(username)
         if existing_user:
             db.delete_user(username)
+        existing_injection = db.get_user(username_injection)
+        if existing_injection:
+            db.delete_user(username_injection)
         return super().setUp()
+
+
 
     def test_valid_signup(self):
         """Verify that signup creates a user and stores a hashed password."""
@@ -54,7 +59,7 @@ class TestSignup(unittest.TestCase):
         # verify that token exists in the table
         tokens = [row["session_token"] for row in sessions]
         self.assertIn(token, tokens, "Returned token should match one in database")
-        
+
 
 # We will now create another "account". This will be an SQL injection attempting to remove the user bob
     def test_injection_valid_signup(self):
