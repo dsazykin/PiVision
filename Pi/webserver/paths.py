@@ -11,6 +11,6 @@ STATIC_DIR = os.path.join(PI_DIR, "static")
 STREAM_DIR = os.path.join(PROJECT_ROOT, "WebServerStream")
 FRAME_PATH = os.path.join(STREAM_DIR, "latest.jpg")
 JSON_PATH = os.path.join(STREAM_DIR, "latest.json")
-CONNECTION_SOFTWARE_PATH = os.path.join(PROJECT_ROOT, "Device", "ConnectionSoftware.py")
+CONNECTION_SOFTWARE_PATH = os.path.join(PROJECT_ROOT, "Device", "PiVision Connection Software.exe")
 
 os.makedirs(STREAM_DIR, exist_ok=True)

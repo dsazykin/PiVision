@@ -1,6 +1,8 @@
 """Main navigation and informational routes."""
 from __future__ import annotations
 
+import html as h
+
 from flask import Blueprint, Response, redirect, request, url_for
 
 import Database
@@ -56,6 +58,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             return redirect(url_for("main.main_page", username=session_user))
 
         download_url = url_for("downloads.download_page")
+        safe_name = h.escape(session["user_name"])
 
         return f"""
         <html><head><title>Pi Vision Gestures</title>
@@ -70,11 +73,11 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         <div class='homepage_container_div'>
             <div class='homepage_content_div'>
                 <body style="text-align:center;font-family:sans-serif;margin-top:40px">
-                <h1>Welcome, {username}</h1>
+                <h1>Welcome, {safe_name}</h1>
                 <p>Choose an action:</p>
-                <a href="/mappings/{username}"><button>Edit Gesture Mappings</button></a><br><br>
+                <a href="/mappings/{safe_name}"><button>Edit Gesture Mappings</button></a><br><br>
                 <a href="{download_url}"><button style='background:green;'>Download Connection Software</button></a><br><br>
-                <a href="/delete/{username}"><button style='background:red;'>Delete My Account</button></a><br><br>
+                <a href="/delete/{safe_name}"><button style='background:red;'>Delete My Account</button></a><br><br>
                 <a href="/logout"><button>Log Out</button></a>
             </div>
             <div class='homepage_content_div'>
@@ -105,9 +108,10 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
 
         html = "<h1>Database Page</h1><div class='db_container_div'>"
         for user in databaseinfo:
+            safename = h.escape(user['user_name'])
             html += "<div class='db_entry_div'>"
             html += (
-                f"<h2>User: {user['user_name']} (Role: {user['role']})</h2><ul>"
+                f"<h2>User: {safename} (Role: {user['role']})</h2><ul>"
             )
             for gesture, action in user["mappings"].items():
                 html += f"<li>{gesture}: {action}</li>"
@@ -124,7 +128,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             return "<h2>No active sessions found.</h2>"
 
         rows = "".join(
-            f"<tr><td>{s['session_id']}</td><td>{s['user_name']}</td>"
+            f"<tr><td>{s['session_id']}</td><td>{h.escape(s['user_name'])}</td>"
             f"<td>{s['role']}</td><td class='token-cell'>{s['session_token']}</td>"
             f"<td>{s['created_at']}</td><td>{s['expires_at']}</td></tr>"
             for s in sessions
