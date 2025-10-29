@@ -4,6 +4,7 @@ import numpy as np
 import torchvision.transforms as T
 import mediapipe as mp
 import os, time, json, socket
+import threading
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 # --------------- TCP CONNECTION SETUP ----------------
@@ -27,12 +28,15 @@ def connect_to_server(possible_ips, port):
 # Connect before starting gesture recognition
 sock = connect_to_server(possible_ips, PORT)
 
-def send_gesture(label):
+listener_thread = threading.Thread(target=listen_for_updates, args=(sock,), daemon=True)
+listener_thread.start()
+
+def send_gesture(label):    
     try:
         sock.sendall((label + "\n").encode())
         print("Sent: " + label)
     except Exception as e:
-        print("⚠️ Send failed, reconnecting:", e)
+        print("Send failed, reconnecting:", e)
         sock.close()
         time.sleep(1)
         # Try to reconnect and resend
@@ -40,6 +44,23 @@ def send_gesture(label):
         new_sock.sendall((label + "\n").encode())
         return new_sock
     return sock
+
+def update_mappings(new_map):
+    global mappings
+    mappings = new_map
+    print("Mappings updated from server")
+
+def listen_for_updates(sock):
+    while True:
+        try:
+            raw = sock.recv(4096).decode().strip()
+            if raw.startswith("UPDATE_MAPPINGS"):
+                json_str = raw.replace("UPDATE_MAPPINGS", "").strip()
+                new_map = json.loads(json_str)
+                update_mappings(new_map)
+        except Exception as e:
+            print("Mapping update listener error:", e)
+            time.sleep(1)
 
 # --------------- MODEL SETUP ----------------
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -83,6 +104,10 @@ mappings = {
     "two_up_inverted": ["ctrl", "hold"]
 }
 
+#Goal: mapping from the database to Pi (in DeviceControl.py)
+# Get it from the database at the start
+# Update the database when change and also update the Pi
+
 # --------------- MEDIAPIPE SETUP ----------------
 cap = cv2.VideoCapture(0)
 cap.set(cv2.CAP_PROP_FPS, 30)
@@ -102,6 +127,18 @@ hold_input = True
 input_sent = False
 
 # --------------- MAIN LOOP ----------------
+
+isLoggedIn = False
+BOOLEAN_PATH = os.path.join(temp_dir, "boolean.json")
+
+while not isLoggedIn:
+    try:
+        with open(BOOLEAN_PATH) as handle:
+            jsonValue = json.load(handle)
+    except Exception:
+        jsonValue = {"loggedIn": False}
+    isLoggedIn = jsonValue.get("loggedIn")
+
 try:
     while True:
         data = {"gesture": "None", "confidence": 0.0}
