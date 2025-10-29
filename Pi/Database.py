@@ -134,6 +134,19 @@ def initialize_database():
 
         conn.commit()
 
+def delete_database():
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+                       DROP TABLE users, sessions, gesture_mappings
+                       """)
+        conn.commit()
+
+
+def reset_database():
+    delete_database()
+    initialize_database()
+
 
 def update_gesture_mapping(username, gesture_name, new_action, new_duration):
     with get_connection() as conn:
@@ -144,7 +157,7 @@ def update_gesture_mapping(username, gesture_name, new_action, new_duration):
                            duration      = ?
                        WHERE gesture_name = ?
                          AND user_id = (SELECT user_id FROM users WHERE user_name = ?)
-                       """, (new_action, new_duration, gesture_name, username))
+                       """, (new_action, new_duration, gesture_name, (username,)))
         conn.commit()
 
 

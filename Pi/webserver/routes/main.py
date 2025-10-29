@@ -92,7 +92,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
     @bp.route("/database")
     def show_database() -> str:
         databaseinfo = []
-        for user_name, role in Database.get_all_users():
+        for user_name  in Database.get_all_users():
             mappings = Database.get_user_mappings(user_name)
             password = Database.get_user_password(user_name)
             if isinstance(password, bytes):
@@ -100,7 +100,6 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             databaseinfo.append(
                 {
                     "user_name": user_name,
-                    "role": role,
                     "mappings": mappings,
                     "password": password,
                 }
@@ -108,10 +107,10 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
 
         html = "<h1>Database Page</h1><div class='db_container_div'>"
         for user in databaseinfo:
-            safename = h.escape(user['user_name'])
+            safename = h.escape(user['user_name'][0])
             html += "<div class='db_entry_div'>"
             html += (
-                f"<h2>User: {safename} (Role: {user['role']})</h2><ul>"
+                f"<h2>User: {safename} </h2><ul>"
             )
             for gesture, action in user["mappings"].items():
                 html += f"<li>{gesture}: {action}</li>"
@@ -129,7 +128,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
 
         rows = "".join(
             f"<tr><td>{s['session_id']}</td><td>{h.escape(s['user_name'])}</td>"
-            f"<td>{s['role']}</td><td class='token-cell'>{s['session_token']}</td>"
+            f"<td class='token-cell'>{s['session_token']}</td>"
             f"<td>{s['created_at']}</td><td>{s['expires_at']}</td></tr>"
             for s in sessions
         )
@@ -175,7 +174,6 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             <tr>
                 <th>ID</th>
                 <th>User</th>
-                <th>Role</th>
                 <th>Session Token</th>
                 <th>Created At</th>
                 <th>Expires At</th>
