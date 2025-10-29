@@ -6,6 +6,10 @@ password = "TestAccount"
 
 class TestSignup(unittest.TestCase):
 
+    def setUp(self):
+        db.initialize_database()
+        return super().setUp()
+
     def test_valid_signup(self):
         # Signup the test account
         db.add_user(username, password)
