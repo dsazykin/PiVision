@@ -239,7 +239,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         elif gesture == "stop_inverted":
             if GESTURE_PROGRESS["gestures"]:
                 GESTURE_PROGRESS["gestures"].pop()
-        elif gesture and gesture not in (False, "False"):
+        elif gesture and gesture not in (False, "False") and gesture != "none":
             GESTURE_PROGRESS["gestures"].append(gesture)
 
         return jsonify(GESTURE_PROGRESS)
