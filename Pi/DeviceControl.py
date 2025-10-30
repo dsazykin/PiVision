@@ -328,4 +328,7 @@ while True:
             sock.close()
             empty_frame = np.zeros((480, 640, 3), dtype=np.uint8)
             cv2.imwrite(FRAME_PATH, empty_frame)  # Clear the frame
-            update_current_gesture({"gesture": "none", "confidence": 0.0})
+            update_current_gesture({"gesture": "none", "confidence": 0.0})            isLoggedIn = check_loggedin()
+            if not isLoggedIn:
+                print("User logged out. Stopping gesture recognition.")
+                break
