@@ -141,6 +141,7 @@ def recognize_gestures():
 
                     if (gesture_count == minimum_hold):
                         gesture_count = 0
+                        print("detected gesture: ", label)
                         data = {"gesture": label}
 
                         if label == "stop":

@@ -234,20 +234,25 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             with open(PASSWORD_GESTURE_PATH) as handle:
                 jsonValue = json.load(handle)
         except Exception:
-            jsonValue = {"gesture": False}
+            jsonValue = {"gesture": "none"}
 
         gesture = jsonValue.get("gesture")
+        print("gesture: ", gesture)
 
         # Only update if new gesture received
         if gesture == "stop":
+            print("stop gesture")
             GESTURE_PROGRESS["done"] = True
         elif gesture == "stop_inverted":
             if GESTURE_PROGRESS["gestures"]:
+                print("removed last gesture")
                 GESTURE_PROGRESS["gestures"].pop()
-        elif gesture and gesture not in (False, "False") and gesture != "none" and gesture != previousGesture:
-            previousGesture = gesture
+        elif (gesture and gesture not in (False,
+                                          "False") and gesture != "none" and gesture != previousGesture):
+            print("added gesture: ", gesture)
             GESTURE_PROGRESS["gestures"].append(gesture)
 
+        previousGesture = gesture
         return jsonify(GESTURE_PROGRESS)
 
     @bp.route("/signup", methods=["GET", "POST"])
@@ -451,19 +456,23 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             with open(PASSWORD_GESTURE_PATH) as handle:
                 jsonValue = json.load(handle)
         except Exception:
-            jsonValue = {"gesture": False}
+            jsonValue = {"gesture": "none"}
 
         gesture = jsonValue.get("gesture")
+        print("gesture: ", gesture)
 
         if gesture == "stop":
+            print("stop gesture")
             GESTURE_PROGRESS["done"] = True
         elif gesture == "stop_inverted":
             if GESTURE_PROGRESS["gestures"]:
+                print("removed last gesture")
                 GESTURE_PROGRESS["gestures"].pop()
         elif (gesture and gesture not in (False, "False") and gesture != "none" and gesture != previousGesture):
-            previousGesture = gesture
+            print("added gesture: ", gesture)
             GESTURE_PROGRESS["gestures"].append(gesture)
 
+        previousGesture = gesture
         return jsonify(GESTURE_PROGRESS)
 
     @bp.route("/logout")
