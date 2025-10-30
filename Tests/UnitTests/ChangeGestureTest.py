@@ -63,6 +63,15 @@ class TestGestureMapping(unittest.TestCase):
             remaining_defaults = cur.fetchone()[0]
         self.assertGreater(remaining_defaults, 0, "Default gesture mappings must remain in database")
 
+    def tearDown(self):
+        """Remove the test users created during setup."""
+        try:
+            # Delete users and their mappings if they exist
+            db.delete_user("UserA")
+            db.delete_user("UserB")
+        except Exception as e:
+            print(f"[Warning] Cleanup failed: {e}")
+
 
 if __name__ == "__main__":
     unittest.main()
