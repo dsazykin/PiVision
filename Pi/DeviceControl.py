@@ -175,13 +175,16 @@ def recognize_gestures():
 
             time.sleep(0.05)
 
+        with open(JSON_PATH, 'w') as f:
+            json.dump({"gesture": "none"}, f)
+
     except KeyboardInterrupt:
         print("\nStopped by user.")
     finally:
         empty_frame = np.zeros((480, 640, 3), dtype=np.uint8)
         cv2.imwrite(FRAME_PATH, empty_frame)  # Clear the frame
         with open(JSON_PATH, 'w') as f:
-            json.dump({"gesture": "None"}, f)
+            json.dump({"gesture": "none"}, f)
 
 # Watch for mapping updates (using inotify)
 def watch_for_mapping_updates_inotify():
