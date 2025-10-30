@@ -81,7 +81,7 @@ mappings = {
     "two_up_inverted": ["ctrl", "hold"]
 }
 
-def recognize_gestures():
+def send_password_gestures():
     global sendPassword
 
     previous_gesture = ""
@@ -220,7 +220,7 @@ while True:
     sendPassword = check_entering_password()
 
     if sendPassword:
-        recognize_gestures()
+        send_password_gestures()
 
     if isLoggedIn:
         try:
