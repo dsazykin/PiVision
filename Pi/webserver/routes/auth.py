@@ -222,9 +222,12 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             f"<a href='/login/password?username={username}'>Try again</a>"
         )
 
+    previousGesture = "none"
     @bp.route("/login/password/status", methods=["GET"])
     def password_status():
         """Returns live progress of received gestures."""
+        global previousGesture
+
         try:
             with open(PASSWORD_PATH) as handle:
                 jsonValue = json.load(handle)
@@ -239,7 +242,8 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         elif gesture == "stop_inverted":
             if GESTURE_PROGRESS["gestures"]:
                 GESTURE_PROGRESS["gestures"].pop()
-        elif gesture and gesture not in (False, "False") and gesture != "none":
+        elif gesture and gesture not in (False, "False") and gesture != "none" and gesture != previousGesture:
+            previousGesture = gesture
             GESTURE_PROGRESS["gestures"].append(gesture)
 
         return jsonify(GESTURE_PROGRESS)
@@ -442,6 +446,8 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
     @bp.route("/signup/password/status", methods=["GET"])
     def signup_password_status():
         """Live endpoint for gesture-based password progress during signup."""
+        global previousGesture
+
         try:
             with open(PASSWORD_PATH) as handle:
                 jsonValue = json.load(handle)
@@ -455,7 +461,8 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         elif gesture == "stop_inverted":
             if GESTURE_PROGRESS["gestures"]:
                 GESTURE_PROGRESS["gestures"].pop()
-        elif gesture and gesture not in (False, "False") and gesture != "none":
+        elif (gesture and gesture not in (False, "False") and gesture != "none" and gesture != previousGesture):
+            previousGesture = gesture
             GESTURE_PROGRESS["gestures"].append(gesture)
 
         return jsonify(GESTURE_PROGRESS)

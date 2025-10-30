@@ -8,6 +8,8 @@ import threading
 import inotify.adapters
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
+sendPassword = False
+
 # --------------- TCP CONNECTION SETUP ----------------
 possible_ips = ["192.168.137.1", "192.168.5.2", "192.168.178.16"]
 PORT = 9000
@@ -87,16 +89,16 @@ mappings = {
 }
 
 def recognize_gestures():
+    global sendPassword
+
     previous_gesture = ""
     gesture_count = 0
     minimum_hold = 3
 
-    input_sent = False
-
-    send = True
-
     try:
-        while send:
+        while sendPassword:
+            data = {"gesture": "none"}
+
             ret, frame = cap.read()
             if not ret:
                 break
@@ -134,7 +136,6 @@ def recognize_gestures():
                     label = classes[pred]
 
                     if (label != previous_gesture):
-                        input_sent = False
                         previous_gesture = label
                         gesture_count = 0
 
@@ -142,24 +143,8 @@ def recognize_gestures():
                         gesture_count = 0
                         data = {"gesture": label}
 
-                        if (not input_sent):
-                            try:
-                                with open(PASSWORD_PATH, 'w') as f:
-                                    json.dump(data, f)
-                            except Exception as e:
-                                print("Error writing JSON: ", e)
-                        else:
-                            data = {"gesture": "none"}
-                            try:
-                                with open(PASSWORD_PATH, 'w') as f:
-                                    json.dump(data, f)
-                            except Exception as e:
-                                print("Error writing JSON: ", e)
-
                         if label == "stop":
-                            send = False
-
-                        input_sent = True
+                            sendPassword = False
 
                     elif (label == previous_gesture):
                         gesture_count += 1
@@ -180,6 +165,12 @@ def recognize_gestures():
                     previous_gesture = ""
 
             cv2.imwrite(FRAME_PATH, frame)
+
+            try:
+                with open(PASSWORD_PATH, 'w') as f:
+                    json.dump(data, f)
+            except Exception as e:
+                print("Error writing JSON: ", e)
 
             time.sleep(0.05)
 
@@ -234,7 +225,6 @@ input_sent = False
 
 # --------------- MAIN LOOP ----------------
 isLoggedIn = False
-sendPassword = False
 LOGGEDIN_PATH = os.path.join(temp_dir, "loggedIn.json")
 PASSWORD_PATH = os.path.join(temp_dir, "password.json")
 
