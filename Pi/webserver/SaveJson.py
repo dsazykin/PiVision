@@ -7,6 +7,7 @@ temp_dir = os.path.join(project_root, "WebServerStream")
 os.makedirs(temp_dir, exist_ok=True)
 
 MAPPINGS_PATH = os.path.join(temp_dir, "mappings.json")
+PASSWORD_PATH = os.path.join(temp_dir, "password.json")
 
 def update_gestures(mappings: dict):
     """Write updated mappings to a JSON file for DeviceControl to detect."""
@@ -21,8 +22,8 @@ def update_gestures(mappings: dict):
 def entering_password(value: bool):
     """Mark that the user is entering their password, so gesture recognition should be enabled."""
     try:
-        os.makedirs(os.path.dirname(MAPPINGS_PATH), exist_ok=True)
-        with open(MAPPINGS_PATH, "w") as f:
+        os.makedirs(os.path.dirname(PASSWORD_PATH), exist_ok=True)
+        with open(PASSWORD_PATH, "w") as f:
             json.dump({"value": value}, f)
         print("Password can now be entered.")
     except Exception as e:
