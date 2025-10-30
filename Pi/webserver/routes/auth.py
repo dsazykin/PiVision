@@ -7,9 +7,9 @@ import Database
 import json, os
 import threading
 import random
+from flask import Response
 
 from ..SaveJson import update_gestures, entering_password
-
 from ..middleware import SessionManager
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -110,6 +110,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             <body>
                 <h1>Enter password with gestures for {username}</h1>
                 <div class="blocks" id="passwordDisplay">Waiting for gestures...</div><br>
+                <img src="{{ url_for('auth.stream') }}" width="400" height="380"><br>
                 <button id="showPasswordBtn">Show Password</button>
                 <p><a href="/login">Go back and change username</a></p>
 
@@ -261,13 +262,11 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                 url_for("main.main_page", username=active_session["user_name"])
             )
 
-        # ---------- STEP 1: show live gesture UI ----------
         if request.method == "GET":
             username = request.args.get("username")
             if not username:
                 return redirect(url_for("auth.signup_step1"))
 
-            # Reset and start gesture collection
             GESTURE_PROGRESS["gestures"] = []
             GESTURE_PROGRESS["done"] = False
             entering_password(True)
@@ -300,8 +299,8 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                 <p>Creating account for <b>{username}</b></p>
 
                 <div class="blocks" id="passwordDisplay">Waiting for gestures...</div><br>
+                <img src="{{ url_for('auth.stream') }}" width="400" height="380"><br><br>
                 <button id="showPasswordBtn">Show Password</button>
-
                 <p><a href="/signup">Go back and change username</a></p>
 
                 <script>
@@ -351,7 +350,6 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             </html>
             """
 
-        # ---------- STEP 2: handle POST (finalize signup) ----------
         username = request.form.get("username")
         password = request.form.get("password", "")
 
@@ -432,3 +430,5 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         return response
 
     return bp
+
+
