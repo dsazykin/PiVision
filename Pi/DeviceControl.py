@@ -43,6 +43,49 @@ def send_gesture(label):
         return new_sock
     return sock
 
+# --------------- MODEL SETUP ----------------
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(script_dir, ".."))
+temp_dir = os.path.join(project_root, "WebServerStream")
+os.makedirs(temp_dir, exist_ok=True)
+
+FRAME_PATH = os.path.join(temp_dir, "latest.jpg")
+JSON_PATH = os.path.join(temp_dir, "latest.json")
+MAPPINGS_PATH = os.path.join(temp_dir, "mappings.json")
+
+model_path = os.path.join(project_root, "Models", "gesture_model_v4_handcrop.onnx")
+
+session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
+input_name = session.get_inputs()[0].name
+
+classes = [
+    'call', 'dislike', 'fist', 'four',
+    'like', 'mute', 'ok', 'one',
+    'palm', 'peace', 'peace_inverted',
+    'rock', 'stop', 'stop_inverted',
+    'three', 'three2', 'two_up', 'two_up_inverted'
+]
+mappings = {
+    "call": ["esc", "press"],                     
+    "dislike": ["scroll_down", "hold"],
+    "fist": ["delete", "press"],
+    "four": ["tab", "press"],
+    "like": ["scroll_up", "hold"],
+    "mute": ["volume_toggle", "press"],
+    "ok": ["enter", "press"],
+    "one": ["left_click", "press"],
+    "palm": ["space", "press"],
+    "peace": ["winleft", "press"],
+    "peace_inverted": ["alt", "hold"],
+    "rock": ["w", "press"],
+    "stop": ["mouse_up", "hold"],
+    "stop_inverted": ["mouse_down", "hold"],
+    "three": ["mouse_right", "hold"],
+    "three2": ["mouse_left", "hold"],
+    "two_up": ["right_click", "press"],
+    "two_up_inverted": ["ctrl", "hold"]
+}
+
 def recognize_gestures():
     cap = cv2.VideoCapture(0)
     cap.set(cv2.CAP_PROP_FPS, 30)
@@ -146,49 +189,6 @@ def recognize_gestures():
         sock.close()
         empty_frame = np.zeros((480, 640, 3), dtype=np.uint8)
         cv2.imwrite(FRAME_PATH, empty_frame)  # Clear the frame
-
-# --------------- MODEL SETUP ----------------
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.abspath(os.path.join(script_dir, ".."))
-temp_dir = os.path.join(project_root, "WebServerStream")
-os.makedirs(temp_dir, exist_ok=True)
-
-FRAME_PATH = os.path.join(temp_dir, "latest.jpg")
-JSON_PATH = os.path.join(temp_dir, "latest.json")
-MAPPINGS_PATH = os.path.join(temp_dir, "mappings.json")
-
-model_path = os.path.join(project_root, "Models", "gesture_model_v4_handcrop.onnx")
-
-session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
-input_name = session.get_inputs()[0].name
-
-classes = [
-    'call', 'dislike', 'fist', 'four',
-    'like', 'mute', 'ok', 'one',
-    'palm', 'peace', 'peace_inverted',
-    'rock', 'stop', 'stop_inverted',
-    'three', 'three2', 'two_up', 'two_up_inverted'
-]
-mappings = {
-    "call": ["esc", "press"],                     
-    "dislike": ["scroll_down", "hold"],
-    "fist": ["delete", "press"],
-    "four": ["tab", "press"],
-    "like": ["scroll_up", "hold"],
-    "mute": ["volume_toggle", "press"],
-    "ok": ["enter", "press"],
-    "one": ["left_click", "press"],
-    "palm": ["space", "press"],
-    "peace": ["winleft", "press"],
-    "peace_inverted": ["alt", "hold"],
-    "rock": ["w", "press"],
-    "stop": ["mouse_up", "hold"],
-    "stop_inverted": ["mouse_down", "hold"],
-    "three": ["mouse_right", "hold"],
-    "three2": ["mouse_left", "hold"],
-    "two_up": ["right_click", "press"],
-    "two_up_inverted": ["ctrl", "hold"]
-}
 
 # Watch for mapping updates (using inotify)
 def watch_for_mapping_updates_inotify():
