@@ -9,9 +9,9 @@ import json
 import os
 import threading
 import random
+from flask import Response
 
 from ..SaveJson import update_gestures, entering_password
-
 from ..middleware import SessionManager
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -134,14 +134,15 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                 </style>
             </head>
             <body>
-                <h1>Enter password with gestures for {username}</h1>
+                <h1>Enter password with gestures for {h.escape(username)}</h1>
                 <div class="blocks" id="passwordDisplay">Waiting for gestures...</div><br>
+                <img src="{{ url_for('auth.stream') }}" width="400" height="380"><br>
                 <button id="showPasswordBtn">Show Password</button>
                 <p><a href="/login">Go back and change username</a></p>
 
                 <script>
                     let showPassword = false;
-                    const username = "{username}";
+                    const username = "{h.escape(username)}";
 
                     document.getElementById("showPasswordBtn").addEventListener("click", () => {{
                         showPassword = !showPassword;
@@ -219,7 +220,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         return (
             "<h1>Login Failed</h1>"
             "<p style='color:red;'>Invalid password.</p>"
-            f"<a href='/login/password?username={username}'>Try again</a>"
+            f"<a href='/login/password?username={h.escape(username)}'>Try again</a>"
         )
 
     previousGesture = "none"
@@ -308,13 +309,11 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                 url_for("main.main_page", username=active_session["user_name"])
             )
 
-        # ---------- STEP 1: show live gesture UI ----------
         if request.method == "GET":
             username = request.args.get("username")
             if not username:
                 return redirect(url_for("auth.signup_step1"))
 
-            # Reset and start gesture collection
             GESTURE_PROGRESS["gestures"] = []
             GESTURE_PROGRESS["done"] = False
             entering_password(True)
@@ -344,16 +343,16 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             </head>
             <body>
                 <h1>Sign Up (Step 2 of 2)</h1>
-                <p>Creating account for <b>{username}</b></p>
+                <p>Creating account for <b>{h.escape(username)}</b></p>
 
                 <div class="blocks" id="passwordDisplay">Waiting for gestures...</div><br>
+                <img src="{{ url_for('auth.stream') }}" width="400" height="380"><br><br>
                 <button id="showPasswordBtn">Show Password</button>
-
                 <p><a href="/signup">Go back and change username</a></p>
 
                 <script>
                     let showPassword = false;
-                    const username = "{username}";
+                    const username = "{h.escape(username)}";
 
                     document.getElementById("showPasswordBtn").addEventListener("click", () => {{
                         showPassword = !showPassword;
@@ -398,7 +397,6 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             </html>
             """
 
-        # ---------- STEP 2: handle POST (finalize signup) ----------
         username = request.form.get("username")
         password = request.form.get("password", "")
 
@@ -482,3 +480,5 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         return response
 
     return bp
+
+
