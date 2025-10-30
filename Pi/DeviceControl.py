@@ -175,7 +175,7 @@ def recognize_gestures():
 
             time.sleep(0.05)
 
-        with open(JSON_PATH, 'w') as f:
+        with open(PASSWORD_GESTURE_PATH, 'w') as f:
             json.dump({"gesture": "none"}, f)
 
     except KeyboardInterrupt:
