@@ -107,7 +107,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
 
         html = "<h1>Database Page</h1><div class='db_container_div'>"
         for user in databaseinfo:
-            safename = h.escape(user['user_name'][0])
+            safename = h.escape(user['user_name'])
             html += "<div class='db_entry_div'>"
             html += (
                 f"<h2>User: {safename} </h2><ul>"
