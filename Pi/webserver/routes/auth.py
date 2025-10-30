@@ -134,7 +134,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                 </style>
             </head>
             <body>
-                <h1>Enter password with gestures for {username}</h1>
+                <h1>Enter password with gestures for {h.escape(username)}</h1>
                 <div class="blocks" id="passwordDisplay">Waiting for gestures...</div><br>
                 <img src="{{ url_for('auth.stream') }}" width="400" height="380"><br>
                 <button id="showPasswordBtn">Show Password</button>
@@ -142,7 +142,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
 
                 <script>
                     let showPassword = false;
-                    const username = "{username}";
+                    const username = "{h.escape(username)}";
 
                     document.getElementById("showPasswordBtn").addEventListener("click", () => {{
                         showPassword = !showPassword;
@@ -220,7 +220,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         return (
             "<h1>Login Failed</h1>"
             "<p style='color:red;'>Invalid password.</p>"
-            f"<a href='/login/password?username={username}'>Try again</a>"
+            f"<a href='/login/password?username={h.escape(username)}'>Try again</a>"
         )
 
     @bp.route("/login/password/status", methods=["GET"])
@@ -339,7 +339,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             </head>
             <body>
                 <h1>Sign Up (Step 2 of 2)</h1>
-                <p>Creating account for <b>{username}</b></p>
+                <p>Creating account for <b>{h.escape(username)}</b></p>
 
                 <div class="blocks" id="passwordDisplay">Waiting for gestures...</div><br>
                 <img src="{{ url_for('auth.stream') }}" width="400" height="380"><br><br>
@@ -348,7 +348,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
 
                 <script>
                     let showPassword = false;
-                    const username = "{username}";
+                    const username = "{h.escape(username)}";
 
                     document.getElementById("showPasswordBtn").addEventListener("click", () => {{
                         showPassword = !showPassword;
