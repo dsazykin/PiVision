@@ -234,7 +234,6 @@ hold_input = True
 input_sent = False
 
 # --------------- MAIN LOOP ----------------
-
 isLoggedIn = False
 sendPassword = False
 LOGGEDIN_PATH = os.path.join(temp_dir, "loggedIn.json")
@@ -248,15 +247,16 @@ while not isLoggedIn:
         jsonValue = {"loggedIn": False}
     isLoggedIn = jsonValue.get("loggedIn")
 
-    try:
-        with open(PASSWORD_PATH) as handle:
-            jsonValue = json.load(handle)
-    except Exception:
-        jsonValue = {"value": False}
-    sendPassword = jsonValue.get("value")
+    if not sendPassword:
+        try:
+            with open(PASSWORD_PATH) as handle:
+                jsonValue = json.load(handle)
+        except Exception:
+            jsonValue = {"value": False}
+        sendPassword = jsonValue.get("value")
 
-    if sendPassword:
-        recognize_gestures()
+        if sendPassword:
+            recognize_gestures()
 
 try:
     while True:
