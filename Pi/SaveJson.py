@@ -1,6 +1,6 @@
 import json, os
 
-from .webserver.paths import MAPPINGS_PATH, PASSWORD_PATH, TEMP_DIR, JSON_PATH, LOGGEDIN_PATH
+from .webserver.paths import MAPPINGS_PATH, PASSWORD_PATH, TEMP_DIR, JSON_PATH, LOGGEDIN_PATH, PASSWORD_GESTURE_PATH
 
 os.makedirs(TEMP_DIR, exist_ok=True)
 
@@ -39,3 +39,10 @@ def update_loggedin(value: bool):
             json.dump({"loggedIn": value}, f)
     except Exception as e:
         print("Error updating logged in value:", e)
+
+def update_password_gesture(data: dict):
+    try:
+        with open(PASSWORD_GESTURE_PATH, 'w') as f:
+            json.dump(data, f)
+    except Exception as e:
+        print("Error saving password gesture: ", e)

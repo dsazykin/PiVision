@@ -6,7 +6,7 @@ import os, time, json, socket
 import threading
 import inotify.adapters
 from webserver.paths import (FRAME_PATH, JSON_PATH, MAPPINGS_PATH, PROJECT_ROOT, PASSWORD_GESTURE_PATH)
-from SaveJson import update_current_gesture
+from SaveJson import update_current_gesture, update_password_gesture
 from ReadJson import check_loggedin, check_entering_password
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
@@ -154,17 +154,12 @@ def recognize_gestures():
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
             else:
                 if (previous_gesture != ""):
-                    input_sent = False
                     gesture_count = 0
                     previous_gesture = ""
 
             cv2.imwrite(FRAME_PATH, frame)
 
-            try:
-                with open(PASSWORD_GESTURE_PATH, 'w') as f:
-                    json.dump(data, f)
-            except Exception as e:
-                print("Error writing JSON: ", e)
+            update_password_gesture(data)
 
             time.sleep(0.05)
 
@@ -176,8 +171,7 @@ def recognize_gestures():
     finally:
         empty_frame = np.zeros((480, 640, 3), dtype=np.uint8)
         cv2.imwrite(FRAME_PATH, empty_frame)  # Clear the frame
-        with open(JSON_PATH, 'w') as f:
-            json.dump({"gesture": "none"}, f)
+        update_password_gesture({"gesture": "none"})
 
 # Watch for mapping updates (using inotify)
 def watch_for_mapping_updates_inotify():
