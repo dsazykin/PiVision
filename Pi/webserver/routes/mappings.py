@@ -5,7 +5,7 @@ from flask import Blueprint, Response, redirect, request, url_for
 
 import Database
 
-from ..UpdateMappings import update_gestures
+from ..SaveJson import update_gestures
 
 from ..middleware import SessionManager, get_request_session
 
