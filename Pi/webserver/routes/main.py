@@ -16,12 +16,37 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
 
     @bp.route("/")
     def index() -> str:
-        return (
-            "<h1>Welcome to the Gesture Control Web App</h1>"
-            "<p>This web interface lets you manage users and gesture recognition.</p>"
-            "<a href=\"/login\"><button>Login</button></a>"
-            "<a href=\"/signup\"><button>Sign Up</button></a>"
-        )
+        return """
+            <!doctype html>
+            <html>
+            <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <title>Welcome - Gesture Control</title>
+            <link rel="stylesheet" href="/static/css/style.css">
+            </head>
+            <body>
+            <div class="container">
+                <div class="header">
+                <div class="brand">
+                    <div class="brand-mark">GC</div>
+                    <h1>Gesture Control</h1>
+                </div>
+                </div>
+
+                <div class="homepage_content_div center" style="max-width:600px;margin:0 auto;">
+                <h2>Welcome to the Gesture Control Web App</h2>
+                <p class="lead">Manage users and gesture recognition from this interface.</p>
+                <div style="margin-top:18px;">
+                    <a href="/login" class="btn">Login</a>
+                    <a href="/signup" class="btn ghost" style="margin-left:8px;">Sign Up</a>
+                </div>
+                </div>
+            </div>
+            </body>
+            </html>
+            """
+
 
     @bp.route("/video")
     @require_login
@@ -60,7 +85,62 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         download_url = url_for("downloads.download_page")
         safe_name = h.escape(session["user_name"])
 
-        return f"""
+        return f"""<!doctype html>
+            <html>
+            <head>
+            <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+            <title>Pi Vision Gestures</title>
+            <link rel="stylesheet" href="/static/css/style.css">
+            <script>
+            const eventSource = new EventSource("/gesture");
+            eventSource.onmessage = function(event) {{
+                const data = JSON.parse(event.data);
+                document.getElementById('g').innerText = data.gesture;
+                document.getElementById('c').innerText = (data.confidence*100).toFixed(1)+'%';
+            }};
+            </script>
+            </head>
+            <body>
+            <div class="container">
+                <div class="header">
+                <div class="brand">
+                    <div class="brand-mark">GC</div>
+                    <h1>Pi Vision Gestures</h1>
+                </div>
+                <div style="align-self:center;">
+                    <a href="/logout" class="btn ghost">Log Out</a>
+                </div>
+                </div>
+
+                <div class="homepage_container_div">
+                <div class="homepage_content_div center">
+                    <div style="max-width: 420px;">
+                    <h2>Welcome, {safe_name}</h2>
+                    <p class="lead">Choose an action</p>
+
+                    <div style="margin-top:12px; display:flex; flex-direction:column; gap:10px; align-items:center;">
+                        <a href="/mappings/{safe_name}" class="btn">Edit Gesture Mappings</a>
+                        <a href="{download_url}" class="btn green">Download Connection Software</a>
+                        <a href="/delete/{safe_name}" class="btn danger">Delete My Account</a>
+                        <a href="/logout" class="btn ghost">Log Out</a>
+                    </div>
+                    </div>
+                </div>
+
+                <div class="homepage_content_div gesture-display">
+                    <h1 id="g">Loading...</h1>
+                    <p>Confidence: <strong id="c">--%</strong></p>
+                    <a href="/video" class="btn ghost">View Live Stream ▶</a>
+                </div>
+                </div>
+            </div>
+            </body>
+            </html>
+            """
+
+
+        #return f"""
+        """
         <html><head><title>Pi Vision Gestures</title>
         <script>
         const eventSource = new EventSource("/gesture");
@@ -105,20 +185,46 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                 }
             )
 
-        html = "<h1>Database Page</h1><div class='db_container_div'>"
+        # after you build databaseinfo[]
+        html = """<!doctype html>
+        <html><head>
+        <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>Database - Users</title>
+        <link rel="stylesheet" href="/static/css/style.css">
+        </head><body>
+        <div class="container">
+            <div class="header">
+            <div class="brand">
+                <div class="brand-mark">DB</div>
+                <h1>Database Overview</h1>
+            </div>
+            </div>
+
+            <div class="db_container_div">
+        """
         for user in databaseinfo:
             safename = h.escape(user['user_name'])
-            html += "<div class='db_entry_div'>"
-            html += (
-                f"<h2>User: {safename} </h2><ul>"
-            )
+            html += f"""
+            <div class="db_entry_div">
+                <h2>User: {safename}</h2>
+                <ul>
+            """
             for gesture, action in user["mappings"].items():
-                html += f"<li>{gesture}: {action}</li>"
-            html += (
-                f"</ul><p><strong>Hashed Password:</strong> {user['password']}</p></div>"
-            )
-        html += "</div>"
+                html += f"<li>{h.escape(str(gesture))}: {h.escape(str(action))}</li>"
+            html += f"""</ul>
+                <p><strong>Hashed Password:</strong> {h.escape(user['password'])}</p>
+            </div>
+            """
+        html += """
+            </div>
+            <div style="margin-top:18px;">
+            <a href="/" class="btn ghost">Back Home</a>
+            </div>
+        </div>
+        </body></html>
+        """
         return html
+
 
     @bp.route("/sessions", methods=["GET"])
     def show_sessions() -> str:
@@ -128,60 +234,43 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
 
         rows = "".join(
             f"<tr><td>{s['session_id']}</td><td>{h.escape(s['user_name'])}</td>"
-            f"<td class='token-cell'>{s['session_token']}</td>"
-            f"<td>{s['created_at']}</td><td>{s['expires_at']}</td></tr>"
+            f"<td class='token-cell'>{h.escape(s['session_token'])}</td>"
+            f"<td>{h.escape(str(s['created_at']))}</td><td>{h.escape(str(s['expires_at']))}</td></tr>"
             for s in sessions
         )
 
-        return """
-        <h1>Active Sessions</h1>
-        <style>
-            table {{
-                border-collapse: collapse;
-                margin-top: 20px;
-                width: 90%;
-                font-family: Arial, sans-serif;
-            }}
-            th, td {{
-                border: 1px solid #ccc;
-                padding: 10px;
-                text-align: center;
-            }}
-            th {{
-                background-color: #4CAF50;
-                color: white;
-            }}
-            tr:nth-child(even) {{
-                background-color: #f9f9f9;
-            }}
-            .token-cell {{
-                max-width: 320px;
-                overflow-wrap: anywhere;
-                font-family: monospace;
-                color: #333;
-            }}
-            h1 {{
-                font-family: Arial, sans-serif;
-                text-align: center;
-            }}
-            body {{
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-            }}
-        </style>
-        <table>
-            <tr>
-                <th>ID</th>
-                <th>User</th>
-                <th>Session Token</th>
-                <th>Created At</th>
-                <th>Expires At</th>
-            </tr>
-        """ + rows + """
-        </table>
-        <br><a href='/'><button style='padding:10px 20px; border:none; background-color:#4CAF50; color:white; border-radius:5px; cursor:pointer;'>Back Home</button></a>
+        return f"""<!doctype html>
+        <html><head>
+        <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>Active Sessions</title>
+        <link rel="stylesheet" href="/static/css/style.css">
+        </head><body>
+        <div class="container">
+            <div class="header">
+            <div class="brand">
+                <div class="brand-mark">S</div>
+                <h1>Active Sessions</h1>
+            </div>
+            </div>
+
+            <div class="table-wrap">
+            <table class="sessions-table">
+                <thead>
+                <tr><th>ID</th><th>User</th><th>Session Token</th><th>Created At</th><th>Expires At</th></tr>
+                </thead>
+                <tbody>
+                {rows}
+                </tbody>
+            </table>
+            </div>
+
+            <div style="margin-top:18px;">
+            <a href="/" class="btn">Back Home</a>
+            </div>
+        </div>
+        </body></html>
         """
+
 
     @bp.route("/delete/<username>")
     @require_login
@@ -196,12 +285,31 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         deleted = Database.delete_user(username)
         safe = h.escape(username)
         if deleted == 0:
-            return (
-                f"<h1>Deletion Failed</h1><p style='color:red;'>User '{safe}' not found.</p>"
-            )
-        return (
-            f"<h1>Account Deleted</h1><p>User '{safe}' has been removed.</p>"
-            "<a href='/'>Return Home</a>"
-        )
+            return f"""<!doctype html><html><head>
+                <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+                <link rel="stylesheet" href="/static/css/style.css">
+                <title>Deletion Failed</title></head><body>
+                <div class="container">
+                <div class="homepage_content_div center" style="max-width:640px;margin:20px auto;">
+                    <h2>Deletion Failed</h2>
+                    <p style="color:var(--danger)">User '{h.escape(username)}' not found.</p>
+                    <a href="/" class="btn ghost">Return Home</a>
+                </div>
+                </div>
+                </body></html>"""
+
+        return f"""<!doctype html><html><head>
+            <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+            <link rel="stylesheet" href="/static/css/style.css">
+            <title>Account Deleted</title></head><body>
+            <div class="container">
+            <div class="homepage_content_div center" style="max-width:640px;margin:20px auto;">
+                <h2>Account Deleted</h2>
+                <p>User '{h.escape(username)}' has been removed.</p>
+                <a href="/" class="btn">Return Home</a>
+            </div>
+            </div>
+            </body></html>"""
+
 
     return bp

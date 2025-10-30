@@ -1,10 +1,12 @@
 """Authentication routes."""
 from __future__ import annotations
 
+import html as h
 from flask import Blueprint, Response, make_response, redirect, request, url_for, jsonify
 
 import Database
-import json, os
+import json
+import os
 import threading
 import random
 from flask import Response
@@ -26,11 +28,11 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
     def _generate_default_username() -> str:
         while True:
             name_list = [
-                "Traveler", "Explorer", "Guest", "Builder", 
-                "Creator", "Nomad", "ZeroKool", "Seeker", "SyntaxError404"
-                , "User"
+                "Traveler", "Explorer", "Guest", "Builder",
+                "Creator", "Nomad", "ZeroKool", "Seeker", "SyntaxError404",
+                "User",
             ]
-            
+
             base_name = random.choice(name_list)
             unique_signature = str(random.randint(0, 100000))
 
@@ -40,7 +42,6 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
 
     @bp.route("/login", methods=["GET", "POST"])
     def login_step1() -> Response | str:
-        
         active_session = session_manager.get_active_session()
         if active_session:
             return redirect(
@@ -48,26 +49,51 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             )
 
         if request.method == "POST":
-            username = request.form.get("username_select") 
+            username = request.form.get("username_select")
             if username:
                 return redirect(url_for("auth.login_step2", username=username))
+            # Keep behaviour: simple message if nothing selected
             return "Please select a username."
 
         # GET request - display all usernames in a dropdown
-        all_users = Database.get_all_users() 
-        user_options = "".join(f'<option value="{u}">{u}</option>' for u in all_users)
-        
-        return f"""
-            <h1>Select Username</h1>
-            <form method="POST">
-                <label>Username:</label><br>
-                <select name="username_select" required>
-                    {user_options}
-                </select><br><br>
-                <input type="submit" value="Next">
-            </form>
-            <br><a href="/signup">Don't have an account? Sign up here</a>
-        """
+        all_users = Database.get_all_users()
+        # escape usernames for HTML safety
+        user_options = "".join(
+            f'<option value="{h.escape(u)}">{h.escape(u)}</option>' for u in all_users
+        )
+
+        return f"""<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Login — Select User</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="homepage_content_div" style="max-width:620px;margin:24px auto;">
+      <h2>Select Username</h2>
+      <p class="lead">Choose your username from the list below.</p>
+      <form method="POST" style="margin-top:12px; display:flex; flex-direction:column; gap:10px; align-items:flex-start;">
+        <label for="username_select">Username:</label>
+        <select id="username_select" name="username_select" required style="width:260px;padding:10px;border-radius:8px;">
+            {user_options}
+        </select>
+
+        <div style="margin-top:10px;">
+          <button type="submit" class="btn">Next</button>
+          <a href="/signup" class="btn ghost" style="margin-left:10px;">Sign up</a>
+        </div>
+      </form>
+      <div style="margin-top:14px;">
+        <a href="/signup" class="btn ghost">Don't have an account? Sign up here</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+"""
 
     @bp.route("/login/password", methods=["GET", "POST"])
     def login_step2():
@@ -214,7 +240,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         elif gesture == "stop_inverted":
             if GESTURE_PROGRESS["gestures"]:
                 GESTURE_PROGRESS["gestures"].pop()
-        elif gesture and gesture not in (False, "False"):
+        elif gesture and gesture not in (False, "False") and gesture != "none":
             GESTURE_PROGRESS["gestures"].append(gesture)
 
         return jsonify(GESTURE_PROGRESS)
@@ -231,28 +257,45 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             username = request.form.get("username")
             if not username:
                 return "<h1>Error</h1><p>Username is required.</p>"
-            
-    
+
             if Database.get_user(username):
-                 return (
+                return (
                     "<h1>Error</h1><p style='color:red;'>Username already taken.</p>"
                     f"<a href='{url_for('auth.signup_step1')}'>Try Again</a>"
                 )
-         
+
             return redirect(url_for("auth.signup_step2", username=username))
-        
-        default_username = _generate_default_username() 
-        
-        return f"""
-            <h1>Sign Up (Step 1 of 2)</h1>
-            <p>We've generated a unique name for you. Feel free to change it!</p>
-            <form method="POST">
-                <label>Choose a Username:</label><br>
-                <input type="text" name="username" value="{default_username}" required><br><br>
-                <input type="submit" value="Next: Set Password">
-            </form>
-            <br><a href="/login">Already have an account? Login here</a>
-        """
+
+        default_username = _generate_default_username()
+
+        safe_default = h.escape(default_username)
+        return f"""<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Sign Up — Step 1</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="homepage_content_div" style="max-width:640px;margin:24px auto;">
+      <h2>Sign Up (Step 1 of 2)</h2>
+      <p class="lead">We've generated a unique name for you. Feel free to change it!</p>
+
+      <form method="POST" style="margin-top:12px; display:flex; flex-direction:column; gap:10px;">
+        <label for="username">Choose a Username</label>
+        <input id="username" type="text" name="username" value="{safe_default}" required>
+        <div style="margin-top:8px;">
+          <button type="submit" class="btn">Next: Set Password</button>
+          <a href="/login" class="btn ghost" style="margin-left:8px;">Already have an account?</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</body>
+</html>
+"""
 
     @bp.route("/signup/password", methods=["GET", "POST"])
     def signup_step2() -> Response | str:
@@ -410,7 +453,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         elif gesture == "stop_inverted":
             if GESTURE_PROGRESS["gestures"]:
                 GESTURE_PROGRESS["gestures"].pop()
-        elif gesture and gesture not in (False, "False"):
+        elif gesture and gesture not in (False, "False") and gesture != "none":
             GESTURE_PROGRESS["gestures"].append(gesture)
 
         return jsonify(GESTURE_PROGRESS)
