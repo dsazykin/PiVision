@@ -158,13 +158,12 @@ def recognize_gestures():
                     previous_gesture = ""
 
             cv2.imwrite(FRAME_PATH, frame)
-
             update_password_gesture(data)
 
+            sendPassword = check_entering_password()
             time.sleep(0.05)
 
-        with open(PASSWORD_GESTURE_PATH, 'w') as f:
-            json.dump({"gesture": "none"}, f)
+        update_password_gesture({"gesture": "none"})
 
     except KeyboardInterrupt:
         print("\nStopped by user.")
@@ -218,11 +217,10 @@ isLoggedIn = False
 while True:
     isLoggedIn = check_loggedin()
 
-    if not sendPassword:
-        sendPassword = check_entering_password()
+    sendPassword = check_entering_password()
 
-        if sendPassword:
-            recognize_gestures()
+    if sendPassword:
+        recognize_gestures()
 
     if isLoggedIn:
         try:
@@ -314,9 +312,6 @@ while True:
                 update_current_gesture(data)
 
                 isLoggedIn = check_loggedin()
-                if not isLoggedIn:
-                    print("User logged out. Stopping gesture recognition.")
-                    break
 
                 time.sleep(0.05)
 
