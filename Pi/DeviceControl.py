@@ -148,6 +148,13 @@ def recognize_gestures():
                                     json.dump(data, f)
                             except Exception as e:
                                 print("Error writing JSON: ", e)
+                        else:
+                            data = {"gesture": "none"}
+                            try:
+                                with open(PASSWORD_PATH, 'w') as f:
+                                    json.dump(data, f)
+                            except Exception as e:
+                                print("Error writing JSON: ", e)
 
                         if label == "stop":
                             send = False
@@ -179,8 +186,6 @@ def recognize_gestures():
     except KeyboardInterrupt:
         print("\nStopped by user.")
     finally:
-        cap.release()
-        sock.close()
         empty_frame = np.zeros((480, 640, 3), dtype=np.uint8)
         cv2.imwrite(FRAME_PATH, empty_frame)  # Clear the frame
 
