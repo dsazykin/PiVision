@@ -6,9 +6,7 @@ from flask import Blueprint, Response, make_response, redirect, request, url_for
 import Database
 import json, os
 import threading
-
 import random
-import uuid
 
 from ..UpdateMappings import update_gestures
 
