@@ -151,7 +151,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                     }});
 
                     function updateProgress() {{
-                        fetch('/login/password/status')
+                        fetch('/password/status')
                             .then(res => res.json())
                             .then(data => {{
                                 const gestures = data.gestures || [];
@@ -225,7 +225,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         )
 
     previousGesture = "none"
-    @bp.route("/login/password/status", methods=["GET"])
+    @bp.route("/password/status", methods=["GET"])
     def password_status():
         """Returns live progress of received gestures."""
         global previousGesture
@@ -243,7 +243,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         if gesture == "stop":
             print("stop gesture")
             GESTURE_PROGRESS["done"] = True
-        elif gesture == "stop_inverted":
+        elif gesture == "stop_inverted" and previousGesture != "stop_inverted":
             if GESTURE_PROGRESS["gestures"]:
                 print("removed last gesture")
                 GESTURE_PROGRESS["gestures"].pop()
@@ -366,7 +366,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                     }});
 
                     function updateProgress() {{
-                        fetch('/signup/password/status')
+                        fetch('/password/status')
                             .then(res => res.json())
                             .then(data => {{
                                 const gestures = data.gestures || [];
@@ -446,34 +446,6 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             )
         except Exception as exc:
             return f"<h1>Unexpected Error</h1><p>{str(exc)}</p>"
-
-    @bp.route("/signup/password/status", methods=["GET"])
-    def signup_password_status():
-        """Live endpoint for gesture-based password progress during signup."""
-        global previousGesture
-
-        try:
-            with open(PASSWORD_GESTURE_PATH) as handle:
-                jsonValue = json.load(handle)
-        except Exception:
-            jsonValue = {"gesture": "none"}
-
-        gesture = jsonValue.get("gesture")
-        print("gesture: ", gesture)
-
-        if gesture == "stop":
-            print("stop gesture")
-            GESTURE_PROGRESS["done"] = True
-        elif gesture == "stop_inverted":
-            if GESTURE_PROGRESS["gestures"]:
-                print("removed last gesture")
-                GESTURE_PROGRESS["gestures"].pop()
-        elif (gesture and gesture not in (False, "False") and gesture != "none" and gesture != previousGesture):
-            print("added gesture: ", gesture)
-            GESTURE_PROGRESS["gestures"].append(gesture)
-
-        previousGesture = gesture
-        return jsonify(GESTURE_PROGRESS)
 
     @bp.route("/logout")
     def logout() -> Response:
