@@ -167,7 +167,7 @@ def recognize_gestures():
             cv2.imwrite(FRAME_PATH, frame)
 
             try:
-                with open(PASSWORD_PATH, 'w') as f:
+                with open(PASSWORD_GESTURE_PATH, 'w') as f:
                     json.dump(data, f)
             except Exception as e:
                 print("Error writing JSON: ", e)
@@ -227,6 +227,7 @@ input_sent = False
 isLoggedIn = False
 LOGGEDIN_PATH = os.path.join(temp_dir, "loggedIn.json")
 PASSWORD_PATH = os.path.join(temp_dir, "password.json")
+PASSWORD_GESTURE_PATH = os.path.join(temp_dir, "password_gesture.json")
 
 while not isLoggedIn:
     try:
@@ -236,14 +237,14 @@ while not isLoggedIn:
         jsonValue = {"loggedIn": False}
     isLoggedIn = jsonValue.get("loggedIn")
 
-    if not sendPassword:
-        try:
-            with open(PASSWORD_PATH) as handle:
-                jsonValue = json.load(handle)
-        except Exception:
-            jsonValue = {"value": False}
-        sendPassword = jsonValue.get("value")
+    try:
+        with open(PASSWORD_PATH) as handle:
+            jsonValue = json.load(handle)
+    except Exception:
+        jsonValue = {"value": False}
+    sendPassword = jsonValue.get("value")
 
+    if not sendPassword:
         if sendPassword:
             recognize_gestures()
 

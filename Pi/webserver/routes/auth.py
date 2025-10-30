@@ -19,6 +19,7 @@ project_root = os.path.abspath(os.path.join(script_dir, "..", "..", ".."))
 temp_dir = os.path.join(project_root, "WebServerStream")
 LOGGEDIN_PATH = os.path.join(temp_dir, "loggedIn.json")
 PASSWORD_PATH = os.path.join(temp_dir, "password.json")
+PASSWORD_GESTURE_PATH = os.path.join(temp_dir, "password_gesture.json")
 
 GESTURE_PROGRESS = {"gestures": [], "done": False}
 
@@ -230,7 +231,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         global previousGesture
 
         try:
-            with open(PASSWORD_PATH) as handle:
+            with open(PASSWORD_GESTURE_PATH) as handle:
                 jsonValue = json.load(handle)
         except Exception:
             jsonValue = {"gesture": False}
@@ -447,7 +448,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         global previousGesture
 
         try:
-            with open(PASSWORD_PATH) as handle:
+            with open(PASSWORD_GESTURE_PATH) as handle:
                 jsonValue = json.load(handle)
         except Exception:
             jsonValue = {"gesture": False}
