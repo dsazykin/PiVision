@@ -10,7 +10,8 @@ import threading
 import random
 from flask import Response
 
-from ..SaveJson import update_gestures, entering_password
+from Pi.SaveJson import update_gestures, entering_password, update_loggedin
+from Pi.ReadJson import get_password_gesture
 from ..middleware import SessionManager
 from ..paths import LOGGEDIN_PATH, PASSWORD_GESTURE_PATH
 
@@ -203,11 +204,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                 max_age=7200,
             )
 
-            try:
-                with open(LOGGEDIN_PATH, 'w') as f:
-                    json.dump({"loggedIn": True}, f)
-            except Exception as e:
-                print("Error writing JSON:", e)
+            update_loggedin(True)
 
             return response
 
@@ -223,26 +220,16 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         """Returns live progress of received gestures."""
         global previousGesture
 
-        try:
-            with open(PASSWORD_GESTURE_PATH) as handle:
-                jsonValue = json.load(handle)
-        except Exception:
-            jsonValue = {"gesture": "none"}
-
-        gesture = jsonValue.get("gesture")
-        print("gesture: ", gesture)
+        gesture = get_password_gesture()
 
         # Only update if new gesture received
         if gesture == "stop":
-            print("stop gesture")
             GESTURE_PROGRESS["done"] = True
         elif gesture == "stop_inverted" and previousGesture != "stop_inverted":
             if GESTURE_PROGRESS["gestures"]:
-                print("removed last gesture")
                 GESTURE_PROGRESS["gestures"].pop()
         elif (gesture and gesture not in (False,
                                           "False") and gesture != "none" and gesture != previousGesture):
-            print("added gesture: ", gesture)
             GESTURE_PROGRESS["gestures"].append(gesture)
 
         previousGesture = gesture
@@ -424,11 +411,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                 max_age=7200,
             )
 
-            try:
-                with open(LOGGEDIN_PATH, 'w') as f:
-                    json.dump({"loggedIn": True}, f)
-            except Exception as e:
-                print("Error writing JSON:", e)
+            update_loggedin(True)
 
             return response
 
@@ -447,11 +430,8 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             Database.delete_session(token)
         response = make_response(redirect(url_for("auth.login_step1")))
         response.delete_cookie("session_token")
-        try:
-            with open(LOGGEDIN_PATH, 'w') as f:
-                json.dump({"loggedIn": False}, f)
-        except Exception as e:
-            print("Error writing JSON: ", e)
+
+        update_loggedin(False)
         return response
 
     return bp

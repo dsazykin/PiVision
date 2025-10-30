@@ -1,6 +1,6 @@
 import json, os
 
-from paths import MAPPINGS_PATH, PASSWORD_PATH, TEMP_DIR
+from .webserver.paths import MAPPINGS_PATH, PASSWORD_PATH, TEMP_DIR, JSON_PATH, LOGGEDIN_PATH
 
 os.makedirs(TEMP_DIR, exist_ok=True)
 
@@ -23,3 +23,19 @@ def entering_password(value: bool):
         print("Password can now be entered.")
     except Exception as e:
         print("Failed to mark entering password:", e)
+
+def update_current_gesture(data: dict):
+    """Save the current detected gesture for use in the webserver."""
+    try:
+        with open(JSON_PATH, 'w') as f:
+            json.dump(data, f)
+    except Exception as e:
+        print("Error saving current gesture: ", e)
+
+def update_loggedin(value: bool):
+    """Set whether the user is logged in."""
+    try:
+        with open(LOGGEDIN_PATH, 'w') as f:
+            json.dump({"loggedIn": value}, f)
+    except Exception as e:
+        print("Error updating logged in value:", e)
