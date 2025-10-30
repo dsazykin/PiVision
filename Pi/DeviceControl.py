@@ -235,6 +235,118 @@ LOGGEDIN_PATH = os.path.join(temp_dir, "loggedIn.json")
 PASSWORD_PATH = os.path.join(temp_dir, "password.json")
 PASSWORD_GESTURE_PATH = os.path.join(temp_dir, "password_gesture.json")
 
+def gesture_control():
+    global isLoggedIn, previous_gesture, gesture_count, hold_gesture, hold_input, input_sent, minimum_hold
+
+    try:
+        while isLoggedIn:
+            data = {"gesture": "None", "confidence": 0.0}
+
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            # frame_count += 1
+            # if frame_count % PROCESS_EVERY != 0:
+            #     continue
+
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = mp_hands.process(rgb)
+
+            if results.multi_hand_landmarks:
+                for hand_landmarks in results.multi_hand_landmarks:
+
+                    h, w, _ = frame.shape
+                    xs = [int(p.x * w) for p in hand_landmarks.landmark]
+                    ys = [int(p.y * h) for p in hand_landmarks.landmark]
+                    margin = 30
+                    x1 = max(min(xs) - margin, 0)
+                    y1 = max(min(ys) - margin, 0)
+                    x2 = min(max(xs) + margin, w)
+                    y2 = min(max(ys) + margin, h)
+                    hand_img = frame[y1:y2, x1:x2]
+
+                    # Preprocess for model
+                    img = cv2.resize(hand_img, (224, 224))
+                    img = img.astype(np.float32) / 255.0
+                    img = (img - [0.485, 0.456, 0.406]) / [0.229, 0.224, 0.225]
+                    img = np.transpose(img, (2, 0, 1))[np.newaxis, :].astype(np.float32)
+
+                    outputs = session.run(None, {input_name: img})
+
+                    logits = outputs[0][0]  # raw model outputs
+                    probs = np.exp(logits) / np.sum(np.exp(logits))  # softmax
+                    top3_idx = np.argsort(probs)[-3:][::-1]  # indices of top 3 classes
+                    top3 = [(classes[i], probs[i]) for i in top3_idx]
+
+                    pred = np.argmax(outputs[0])
+                    label = classes[pred]
+
+                    if label != previous_gesture:
+                        if input_sent and mappings.get(previous_gesture)[1] == "hold":
+                            msg = "release" + " " + mappings.get(previous_gesture)[0]
+                            send_gesture(msg)
+
+                        hold_gesture = False
+                        input_sent = False
+                        previous_gesture = label
+                        gesture_count = 0
+
+                    if gesture_count == minimum_hold or hold_gesture:
+                        hold_gesture = True
+                        gesture_count = 0
+                        print("Detected Gesture: " + label)
+                        data = {"gesture": label, "confidence": float(top3[0][1])}
+
+                        if not input_sent:
+                            msg = mappings.get(label)[1] + " " + mappings.get(label)[0]
+                            send_gesture(msg)
+
+                        input_sent = True
+
+                    elif label == previous_gesture:
+                        gesture_count += 1
+
+                    mp_draw.draw_landmarks(frame, hand_landmarks,
+                                           mp.solutions.hands.HAND_CONNECTIONS)
+
+                    y0, dy = 40, 30
+                    for rank, (cls, prob) in enumerate(top3):
+                        text = f"{rank + 1}. {cls}: {prob * 100:.1f}%"
+                        y = y0 + rank * dy
+                        cv2.putText(frame, text, (10, y),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
+            else:
+                if previous_gesture != "":
+                    if input_sent and mappings.get(previous_gesture)[1] == "hold":
+                        msg = "release" + " " + mappings.get(previous_gesture)[0]
+                        send_gesture(msg)
+
+                    hold_gesture = False
+                    input_sent = False
+                    gesture_count = 0
+                    previous_gesture = ""
+
+            cv2.imwrite(FRAME_PATH, frame)
+
+            try:
+                with open(JSON_PATH, 'w') as f:
+                    json.dump(data, f)
+            except Exception as e:
+                print("Error writing JSON: ", e)
+
+            time.sleep(0.05)
+
+    except KeyboardInterrupt:
+        print("\nStopped by user.")
+    finally:
+        cap.release()
+        sock.close()
+        empty_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        cv2.imwrite(FRAME_PATH, empty_frame)  # Clear the frame
+        with open(JSON_PATH, 'w') as f:
+            json.dump({"gesture": "None", "confidence": 0.0}, f)
+
 while True:
     try:
         with open(LOGGEDIN_PATH) as handle:
@@ -255,115 +367,4 @@ while True:
             recognize_gestures()
 
     if isLoggedIn:
-        try:
-            while isLoggedIn:
-                data = {"gesture": "None", "confidence": 0.0}
-
-                ret, frame = cap.read()
-                if not ret:
-                    break
-
-                # frame_count += 1
-                # if frame_count % PROCESS_EVERY != 0:
-                #     continue
-
-                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                results = mp_hands.process(rgb)
-
-                if results.multi_hand_landmarks:
-                    for hand_landmarks in results.multi_hand_landmarks:
-
-                        h, w, _ = frame.shape
-                        xs = [int(p.x * w) for p in hand_landmarks.landmark]
-                        ys = [int(p.y * h) for p in hand_landmarks.landmark]
-                        margin = 30
-                        x1 = max(min(xs)-margin, 0)
-                        y1 = max(min(ys)-margin, 0)
-                        x2 = min(max(xs)+margin, w)
-                        y2 = min(max(ys)+margin, h)
-                        hand_img = frame[y1:y2, x1:x2]
-
-                        # Preprocess for model
-                        img = cv2.resize(hand_img, (224,224))
-                        img = img.astype(np.float32) / 255.0
-                        img = (img - [0.485,0.456,0.406]) / [0.229,0.224,0.225]
-                        img = np.transpose(img, (2,0,1))[np.newaxis, :].astype(np.float32)
-
-                        outputs = session.run(None, {input_name: img})
-
-                        logits = outputs[0][0]                      # raw model outputs
-                        probs = np.exp(logits) / np.sum(np.exp(logits))  # softmax
-                        top3_idx = np.argsort(probs)[-3:][::-1]     # indices of top 3 classes
-                        top3 = [(classes[i], probs[i]) for i in top3_idx]
-
-                        pred = np.argmax(outputs[0])
-                        label = classes[pred]
-
-                        if(label != previous_gesture):
-                            # print("Detected gesture changed")
-                            # print("Input sent: ", input_sent)
-                            # print("Previous Gesture: ", previous_gesture)
-                            # if (previous_gesture != ""):
-                            #     print("Hold/Press: ", mappings.get(previous_gesture)[1])
-                            if(input_sent and mappings.get(previous_gesture)[1] == "hold"):
-                                msg = "release" + " " + mappings.get(previous_gesture)[0]
-                                send_gesture(msg)
-
-                            hold_gesture = False
-                            input_sent = False
-                            previous_gesture = label
-                            gesture_count = 0
-
-                        if(gesture_count == minimum_hold or hold_gesture):
-                                hold_gesture = True
-                                gesture_count = 0
-                                print("Detected Gesture: " + label)
-                                data = {"gesture": label, "confidence": float(top3[0][1])}
-
-                                if(not input_sent):
-                                    msg = mappings.get(label)[1] + " " + mappings.get(label)[0]
-                                    send_gesture(msg)
-
-                                input_sent = True
-
-                        elif(label == previous_gesture):
-                            gesture_count += 1
-
-                        mp_draw.draw_landmarks(frame, hand_landmarks, mp.solutions.hands.HAND_CONNECTIONS)
-
-                        y0, dy = 40, 30
-                        for rank, (cls, prob) in enumerate(top3):
-                            text = f"{rank+1}. {cls}: {prob*100:.1f}%"
-                            y = y0 + rank * dy
-                            cv2.putText(frame, text, (10, y),
-                                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
-                else:
-                    if (previous_gesture != ""):
-                        if(input_sent and mappings.get(previous_gesture)[1] == "hold"):
-                            msg = "release" + " " + mappings.get(previous_gesture)[0]
-                            send_gesture(msg)
-
-                        hold_gesture = False
-                        input_sent = False
-                        gesture_count = 0
-                        previous_gesture = ""
-
-                cv2.imwrite(FRAME_PATH, frame)
-
-                try:
-                    with open(JSON_PATH, 'w')as f:
-                        json.dump(data, f)
-                except Exception as e:
-                    print("Error writing JSON: ", e)
-
-                time.sleep(0.05)
-
-        except KeyboardInterrupt:
-            print("\nStopped by user.")
-        finally:
-            cap.release()
-            sock.close()
-            empty_frame = np.zeros((480, 640, 3), dtype=np.uint8)
-            cv2.imwrite(FRAME_PATH, empty_frame)  # Clear the frame
-            with open(JSON_PATH, 'w') as f:
-                json.dump({"gesture": "None", "confidence": 0.0}, f)
+        gesture_control()
