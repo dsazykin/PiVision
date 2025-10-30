@@ -35,7 +35,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             return "Please select a username."
 
         # GET request - display all usernames in a dropdown
-        all_users = Database.get_all_usernames() 
+        all_users = Database.get_all_users() 
         user_options = "".join(f'<option value="{u}">{u}</option>' for u in all_users)
         
         return f"""

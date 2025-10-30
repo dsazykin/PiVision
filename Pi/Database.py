@@ -208,13 +208,6 @@ def get_user_mappings(user_name):
         return {gesture: (action, duration) for gesture, action, duration in rows}
 
 
-def get_all_users():
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT user_name FROM users")
-        return cursor.fetchall()
-
-
 def delete_user(user_name):
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -446,7 +439,8 @@ def delete_user_by_id(user_id):
         conn.commit()
         return deleted
 
-def get_all_usernames() -> list[str]:
+
+def get_all_users() -> list[str]:
     try:
         with get_connection() as conn:
             cursor = conn.cursor() 
