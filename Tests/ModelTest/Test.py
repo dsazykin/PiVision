@@ -60,7 +60,7 @@ frame_count = 0
 PROCESS_EVERY = 1
 
 previous_gesture = ""
-gesture_count = 0
+frame_count = 0
 minimum_hold = 10
 hold_gesture = False
 
@@ -100,15 +100,15 @@ while True:
             if(label != previous_gesture):
                 hold_gesture = False
                 previous_gesture = label
-                gesture_count = 0
+                frame_count = 0
 
-            if(gesture_count == minimum_hold or hold_gesture):
+            if(frame_count == minimum_hold or hold_gesture):
                     hold_gesture = True
-                    gesture_count = 0
+                    frame_count = 0
                     print("Detected Gesture: " + label)
                     data = {"gesture": label, "confidence": float(top3[0][1])}
             elif(label == previous_gesture):
-                gesture_count += 1
+                frame_count += 1
 
             mp_draw.draw_landmarks(frame, hand_landmarks, mp.solutions.hands.HAND_CONNECTIONS)
 

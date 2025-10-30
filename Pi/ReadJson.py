@@ -29,3 +29,12 @@ def get_password_gesture():
         jsonValue = {"gesture": "none"}
 
     return jsonValue.get("gesture")
+
+def get_new_mappings():
+    try:
+        with open(MAPPINGS_PATH, "r") as f:
+            new_map = json.load(f)
+            print("🔄 Mappings reloaded (file changed).")
+        return new_map
+    except Exception as e:
+        print("⚠️ Failed to reload mappings:", e)
