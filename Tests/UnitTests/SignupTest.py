@@ -71,6 +71,16 @@ class TestSignup(unittest.TestCase):
         tokens = [row["session_token"] for row in sessions]
         self.assertIn(token, tokens, "Returned token should match one in database")
 
+    def tearDown(self):
+        """Clean up database and test data after each test."""
+        try:
+            # Delete the test user (and related mappings/sessions)
+            db.delete_user(username)
+        except Exception as e:
+            print(f"[Warning] Cleanup failed: {e}")
+
+        super().tearDown()
+
 
 if __name__ == '__main__':
     unittest.main()

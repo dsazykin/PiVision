@@ -39,6 +39,17 @@ class TestSignup(unittest.TestCase):
         bob = db.get_user(username)
         self.assertIsNotNone(bob, "Bob should still be in the database")
 
+    def tearDown(self):
+        # Remove test users if they exist
+        try:
+            db.delete_user(username)
+            db.delete_user(injection)
+        except Exception as e:
+            # Non-fatal; print a warning so it shows up in test logs if cleanup fails
+            print(f"[Warning] Cleanup failed: {e}")
+
+        super().tearDown()
+
 
 if __name__ == '__main__':
     unittest.main()
