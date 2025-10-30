@@ -1,7 +1,7 @@
 """Authentication routes."""
 from __future__ import annotations
 
-from flask import Blueprint, Response, make_response, redirect, request, url_for
+from flask import Blueprint, Response, make_response, redirect, request, url_for, jsonify
 
 import Database
 import json, os
@@ -10,14 +10,17 @@ import threading
 import random
 import uuid
 
-from ..UpdateMappings import update_gestures
+from ..SaveJson import update_gestures, entering_password
 
 from ..middleware import SessionManager
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(script_dir, "..", "..", ".."))
 temp_dir = os.path.join(project_root, "WebServerStream")
-BOOLEAN_PATH = os.path.join(temp_dir, "boolean.json")
+LOGGEDIN_PATH = os.path.join(temp_dir, "loggedIn.json")
+PASSWORD_PATH = os.path.join(temp_dir, "password.json")
+
+GESTURE_PROGRESS = {"gestures": [], "done": False}
 
 def create_blueprint(session_manager: SessionManager) -> Blueprint:
     bp = Blueprint("auth", __name__)
@@ -69,66 +72,153 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         """
 
     @bp.route("/login/password", methods=["GET", "POST"])
-    def login_step2() -> Response | str:
-        
-        active_session = session_manager.get_active_session()
-        if active_session:
-            return redirect(
-                url_for("main.main_page", username=active_session["user_name"])
-            )
-
-        # Handle GET request to show password form
+    def login_step2():
         if request.method == "GET":
             username = request.args.get("username")
             if not username:
-                return redirect(url_for("auth.login_step1")) #Go back if no username
-                
+                return redirect(url_for("auth.login_step1"))
+
+            # Reset gesture collection
+            GESTURE_PROGRESS["gestures"] = []
+            GESTURE_PROGRESS["done"] = False
+
+            # Begin listening for gestures
+            entering_password(True)
+
+            # Serve the live-updating HTML
             return f"""
-                <h1>Login: Enter Password for {username}</h1>
-                <form method="POST">
-                    <input type="hidden" name="username" value="{username}">
-                    <label>Password:</label><br>
-                    <input type="password" name="password" required><br><br>
-                    <input type="submit" value="Login">
-                </form>
-                <br><a href="/login">Go back and change username</a>
+            <html>
+            <head>
+                <title>Gesture Login</title>
+                <style>
+                    body {{
+                        font-family: Arial, sans-serif;
+                        text-align: center;
+                        padding-top: 40px;
+                    }}
+                    .blocks {{
+                        display: inline-block;
+                        font-size: 2em;
+                        letter-spacing: 5px;
+                    }}
+                    button {{
+                        margin-top: 20px;
+                        padding: 10px 20px;
+                        font-size: 1em;
+                        cursor: pointer;
+                    }}
+                </style>
+            </head>
+            <body>
+                <h1>Enter password with gestures for {username}</h1>
+                <div class="blocks" id="passwordDisplay">Waiting for gestures...</div><br>
+                <button id="showPasswordBtn">Show Password</button>
+                <p><a href="/login">Go back and change username</a></p>
+
+                <script>
+                    let showPassword = false;
+                    const username = "{username}";
+
+                    document.getElementById("showPasswordBtn").addEventListener("click", () => {{
+                        showPassword = !showPassword;
+                        document.getElementById("showPasswordBtn").innerText = showPassword ? "Hide Password" : "Show Password";
+                    }});
+
+                    function updateProgress() {{
+                        fetch('/login/password/status')
+                            .then(res => res.json())
+                            .then(data => {{
+                                const gestures = data.gestures || [];
+                                const display = showPassword
+                                    ? gestures.join(" ")
+                                    : "● ".repeat(gestures.length);
+                                document.getElementById("passwordDisplay").innerText = display || "Waiting for gestures...";
+
+                                if (data.done) {{
+                                    // Automatically submit password
+                                    const formData = new FormData();
+                                    formData.append("username", username);
+                                    formData.append("password", gestures.join(""));
+
+                                    fetch('/login/password', {{
+                                        method: 'POST',
+                                        body: formData
+                                    }})
+                                    .then(resp => resp.text())
+                                    .then(html => {{
+                                        document.open();
+                                        document.write(html);
+                                        document.close();
+                                    }})
+                                    .catch(err => console.error("Submit error:", err));
+                                }}
+                            }})
+                            .catch(err => console.error(err));
+                    }}
+
+                    setInterval(updateProgress, 100);
+                </script>
+            </body>
+            </html>
             """
 
-        # Handle POST request to verify password
-        if request.method == "POST":
-            username = request.form.get("username")
-            password = request.form.get("password")
-    
-            if username and password and Database.verify_user(username, password):
-                user_mappings = Database.get_user_mappings(username)
-                thread = threading.Thread(target=update_gestures, args=(user_mappings,))
-                thread.start()
-                
-                user = Database.get_user(username)
-                token = Database.create_session(user["user_id"])
-                response = make_response(
-                    redirect(url_for("main.main_page", username=username))
-                )
-                response.set_cookie(
-                    "session_token",
-                    token,
-                    httponly=True,
-                    samesite="Lax",
-                    max_age=7200,
-                )
-                try:
-                    with open(BOOLEAN_PATH, 'w') as f:
-                        json.dump({"loggedIn": True}, f)
-                except Exception as e:
-                    print("Error writing JSON: ", e)
-                    
-                return response
-                
-            return (
-                "<h1>Login Failed</h1>"
-                "<p style='color:red;'>Invalid password.</p>"
-                f"<a href='/login/password?username={username}'>Try again</a>"
+        # ---------- POST: verify gesture password ----------
+        username = request.form.get("username")
+        password = request.form.get("password", "")
+
+        entering_password(False)
+
+        if username and password and Database.verify_user(username, password):
+            user_mappings = Database.get_user_mappings(username)
+            thread = threading.Thread(target=update_gestures, args=(user_mappings,))
+            thread.start()
+
+            user = Database.get_user(username)
+            token = Database.create_session(user["user_id"])
+            response = make_response(redirect(url_for("main.main_page", username=username)))
+            response.set_cookie(
+                "session_token",
+                token,
+                httponly=True,
+                samesite="Lax",
+                max_age=7200,
             )
+
+            try:
+                with open(LOGGEDIN_PATH, 'w') as f:
+                    json.dump({"loggedIn": True}, f)
+            except Exception as e:
+                print("Error writing JSON:", e)
+
+            return response
+
+        return (
+            "<h1>Login Failed</h1>"
+            "<p style='color:red;'>Invalid password.</p>"
+            f"<a href='/login/password?username={username}'>Try again</a>"
+        )
+
+    @bp.route("/login/password/status", methods=["GET"])
+    def password_status():
+        """Returns live progress of received gestures."""
+        try:
+            with open(PASSWORD_PATH) as handle:
+                jsonValue = json.load(handle)
+        except Exception:
+            jsonValue = {"gesture": False}
+
+        gesture = jsonValue.get("gesture")
+
+        # Only update if new gesture received
+        if gesture == "stop":
+            GESTURE_PROGRESS["done"] = True
+        elif gesture == "stop_inverted":
+            if GESTURE_PROGRESS["gestures"]:
+                GESTURE_PROGRESS["gestures"].pop()
+        elif gesture and gesture not in (False, "False"):
+            GESTURE_PROGRESS["gestures"].append(gesture)
+
+        return jsonify(GESTURE_PROGRESS)
 
     @bp.route("/signup", methods=["GET", "POST"])
     def signup_step1() -> Response | str:
@@ -173,63 +263,161 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                 url_for("main.main_page", username=active_session["user_name"])
             )
 
+        # ---------- STEP 1: show live gesture UI ----------
         if request.method == "GET":
             username = request.args.get("username")
             if not username:
-                return redirect(url_for("auth.signup_step1")) 
+                return redirect(url_for("auth.signup_step1"))
+
+            # Reset and start gesture collection
+            GESTURE_PROGRESS["gestures"] = []
+            GESTURE_PROGRESS["done"] = False
+            entering_password(True)
 
             return f"""
+            <html>
+            <head>
+                <title>Sign Up (Step 2)</title>
+                <style>
+                    body {{
+                        font-family: Arial, sans-serif;
+                        text-align: center;
+                        padding-top: 40px;
+                    }}
+                    .blocks {{
+                        display: inline-block;
+                        font-size: 2em;
+                        letter-spacing: 5px;
+                    }}
+                    button {{
+                        margin-top: 20px;
+                        padding: 10px 20px;
+                        font-size: 1em;
+                        cursor: pointer;
+                    }}
+                </style>
+            </head>
+            <body>
                 <h1>Sign Up (Step 2 of 2)</h1>
-                <p>Creating account for **{username}**</p>
-                <form method="POST">
-                    <input type="hidden" name="username" value="{username}">
-                    <label>Choose a Password:</label><br>
-                    <input type="password" name="password" required><br><br>
-                    <input type="submit" value="Create Account">
-                </form>
-                <br><a href="/signup">Go back and change username</a>
+                <p>Creating account for <b>{username}</b></p>
+
+                <div class="blocks" id="passwordDisplay">Waiting for gestures...</div><br>
+                <button id="showPasswordBtn">Show Password</button>
+
+                <p><a href="/signup">Go back and change username</a></p>
+
+                <script>
+                    let showPassword = false;
+                    const username = "{username}";
+
+                    document.getElementById("showPasswordBtn").addEventListener("click", () => {{
+                        showPassword = !showPassword;
+                        document.getElementById("showPasswordBtn").innerText = showPassword ? "Hide Password" : "Show Password";
+                    }});
+
+                    function updateProgress() {{
+                        fetch('/signup/password/status')
+                            .then(res => res.json())
+                            .then(data => {{
+                                const gestures = data.gestures || [];
+                                const display = showPassword
+                                    ? gestures.join(" ")
+                                    : "● ".repeat(gestures.length);
+                                document.getElementById("passwordDisplay").innerText = display || "Waiting for gestures...";
+
+                                if (data.done) {{
+                                    // Automatically send the signup request
+                                    const formData = new FormData();
+                                    formData.append("username", username);
+                                    formData.append("password", gestures.join(""));
+
+                                    fetch('/signup/password', {{
+                                        method: 'POST',
+                                        body: formData
+                                    }})
+                                    .then(resp => resp.text())
+                                    .then(html => {{
+                                        document.open();
+                                        document.write(html);
+                                        document.close();
+                                    }})
+                                    .catch(err => console.error("Signup error:", err));
+                                }}
+                            }})
+                            .catch(err => console.error(err));
+                    }}
+
+                    setInterval(updateProgress, 500);
+                </script>
+            </body>
+            </html>
             """
-   
-        if request.method == "POST":
-            username = request.form.get("username")
-            password = request.form.get("password")
-            
-            if not username or not password:
-                return "<h1>Error</h1><p>Username and password are required.</p>"
+
+        # ---------- STEP 2: handle POST (finalize signup) ----------
+        username = request.form.get("username")
+        password = request.form.get("password", "")
+
+        entering_password(False)
+
+        if not username or not password:
+            return "<h1>Error</h1><p>Username and password are required.</p>"
+
+        try:
+            Database.add_user(user_name=username, user_password=password)
+            user = Database.get_user(username)
+            token = Database.create_session(user["user_id"])
+
+            updated_map = Database.get_user_mappings(username)
+            thread = threading.Thread(target=update_gestures, args=(updated_map,))
+            thread.start()
+
+            response = make_response(
+                redirect(url_for("main.main_page", username=username))
+            )
+            response.set_cookie(
+                "session_token",
+                token,
+                httponly=True,
+                samesite="Lax",
+                max_age=7200,
+            )
 
             try:
-                Database.add_user(user_name=username, user_password=password)
-                user = Database.get_user(username)
-                token = Database.create_session(user["user_id"])
-                updated_map = Database.get_user_mappings(username)
-                thread = threading.Thread(target=update_gestures, args=(updated_map,))
-                thread.start()
-                response = make_response(
-                    redirect(url_for("main.main_page", username=username))
-                )
-                response.set_cookie(
-                    "session_token",
-                    token,
-                    httponly=True,
-                    samesite="Lax",
-                    max_age=7200,
-                )
+                with open(LOGGEDIN_PATH, 'w') as f:
+                    json.dump({"loggedIn": True}, f)
+            except Exception as e:
+                print("Error writing JSON:", e)
 
-                try:
-                    with open(BOOLEAN_PATH, 'w') as f:
-                        json.dump({"loggedIn": True}, f)
-                except Exception as e:
-                    print("Error writing JSON: ", e)
-                    
-                return response
-                
-            except ValueError as exc:
-                return (
-                    f"<h1>Error</h1><p style='color:red;'>{str(exc)}</p>"
-                    "<a href='/signup'>Try Again</a>"
-                )
-            except Exception as exc: 
-                return f"<h1>Unexpected Error</h1><p>{str(exc)}</p>"
+            return response
+
+        except ValueError as exc:
+            return (
+                f"<h1>Error</h1><p style='color:red;'>{str(exc)}</p>"
+                "<a href='/signup'>Try Again</a>"
+            )
+        except Exception as exc:
+            return f"<h1>Unexpected Error</h1><p>{str(exc)}</p>"
+
+    @bp.route("/signup/password/status", methods=["GET"])
+    def signup_password_status():
+        """Live endpoint for gesture-based password progress during signup."""
+        try:
+            with open(PASSWORD_PATH) as handle:
+                jsonValue = json.load(handle)
+        except Exception:
+            jsonValue = {"gesture": False}
+
+        gesture = jsonValue.get("gesture")
+
+        if gesture == "stop":
+            GESTURE_PROGRESS["done"] = True
+        elif gesture == "stop_inverted":
+            if GESTURE_PROGRESS["gestures"]:
+                GESTURE_PROGRESS["gestures"].pop()
+        elif gesture and gesture not in (False, "False"):
+            GESTURE_PROGRESS["gestures"].append(gesture)
+
+        return jsonify(GESTURE_PROGRESS)
 
     @bp.route("/logout")
     def logout() -> Response:
@@ -239,7 +427,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         response = make_response(redirect(url_for("auth.login_step1")))
         response.delete_cookie("session_token")
         try:
-            with open(BOOLEAN_PATH, 'w') as f:
+            with open(LOGGEDIN_PATH, 'w') as f:
                 json.dump({"loggedIn": False}, f)
         except Exception as e:
             print("Error writing JSON: ", e)
