@@ -1,11 +1,12 @@
 import cv2
 import onnxruntime as ort
 import numpy as np
-import torchvision.transforms as T
 import mediapipe as mp
 import os, time, json, socket
 import threading
 import inotify.adapters
+from webserver.paths import (LOGGEDIN_PATH, FRAME_PATH, JSON_PATH, MAPPINGS_PATH, PROJECT_ROOT,
+                             PASSWORD_PATH, PASSWORD_GESTURE_PATH)
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 sendPassword = False
@@ -46,16 +47,7 @@ def send_gesture(label):
     return sock
 
 # --------------- MODEL SETUP ----------------
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.abspath(os.path.join(script_dir, ".."))
-temp_dir = os.path.join(project_root, "WebServerStream")
-os.makedirs(temp_dir, exist_ok=True)
-
-FRAME_PATH = os.path.join(temp_dir, "latest.jpg")
-JSON_PATH = os.path.join(temp_dir, "latest.json")
-MAPPINGS_PATH = os.path.join(temp_dir, "mappings.json")
-
-model_path = os.path.join(project_root, "Models", "gesture_model_v4_handcrop.onnx")
+model_path = os.path.join(PROJECT_ROOT, "Models", "gesture_model_v4_handcrop.onnx")
 
 session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
 input_name = session.get_inputs()[0].name
@@ -192,8 +184,7 @@ def watch_for_mapping_updates_inotify():
 
     i = inotify.adapters.Inotify()
 
-    mappings_file = os.path.join(temp_dir, "mappings.json")
-    i.add_watch(mappings_file)
+    i.add_watch(MAPPINGS_PATH)
 
     print("Watching for mapping file updates via inotify...")
 
@@ -201,7 +192,7 @@ def watch_for_mapping_updates_inotify():
         (_, type_names, path, filename) = event
         if "IN_CLOSE_WRITE" in type_names:
             try:
-                with open(mappings_file, "r") as f:
+                with open(MAPPINGS_PATH, "r") as f:
                     new_map = json.load(f)
                 mappings = new_map
                 print("🔄 Mappings reloaded (file changed).")
@@ -218,9 +209,6 @@ mp_hands = mp.solutions.hands.Hands(max_num_hands=1,
     min_detection_confidence=0.5, min_tracking_confidence=0.5)
 mp_draw = mp.solutions.drawing_utils
 
-# frame_count = 0
-# PROCESS_EVERY = 10
-
 previous_gesture = ""
 gesture_count = 0
 minimum_hold = 3
@@ -231,24 +219,17 @@ input_sent = False
 
 # --------------- MAIN LOOP ----------------
 isLoggedIn = False
-LOGGEDIN_PATH = os.path.join(temp_dir, "loggedIn.json")
-PASSWORD_PATH = os.path.join(temp_dir, "password.json")
-PASSWORD_GESTURE_PATH = os.path.join(temp_dir, "password_gesture.json")
 
 def gesture_control():
     global isLoggedIn, previous_gesture, gesture_count, hold_gesture, hold_input, input_sent, minimum_hold
 
     try:
         while isLoggedIn:
-            data = {"gesture": "None", "confidence": 0.0}
+            data = {"gesture": "none", "confidence": 0.0}
 
             ret, frame = cap.read()
             if not ret:
                 break
-
-            # frame_count += 1
-            # if frame_count % PROCESS_EVERY != 0:
-            #     continue
 
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             results = mp_hands.process(rgb)
@@ -345,7 +326,7 @@ def gesture_control():
         empty_frame = np.zeros((480, 640, 3), dtype=np.uint8)
         cv2.imwrite(FRAME_PATH, empty_frame)  # Clear the frame
         with open(JSON_PATH, 'w') as f:
-            json.dump({"gesture": "None", "confidence": 0.0}, f)
+            json.dump({"gesture": "none", "confidence": 0.0}, f)
 
 while True:
     try:

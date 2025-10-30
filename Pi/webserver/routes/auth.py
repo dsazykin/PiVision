@@ -2,24 +2,17 @@
 from __future__ import annotations
 
 import html as h
-from flask import Blueprint, Response, make_response, redirect, request, url_for, jsonify
+from flask import Blueprint, make_response, redirect, request, url_for, jsonify
 
 import Database
 import json
-import os
 import threading
 import random
 from flask import Response
 
 from ..SaveJson import update_gestures, entering_password
 from ..middleware import SessionManager
-
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.abspath(os.path.join(script_dir, "..", "..", ".."))
-temp_dir = os.path.join(project_root, "WebServerStream")
-LOGGEDIN_PATH = os.path.join(temp_dir, "loggedIn.json")
-PASSWORD_PATH = os.path.join(temp_dir, "password.json")
-PASSWORD_GESTURE_PATH = os.path.join(temp_dir, "password_gesture.json")
+from ..paths import LOGGEDIN_PATH, PASSWORD_GESTURE_PATH
 
 GESTURE_PROGRESS = {"gestures": [], "done": False}
 

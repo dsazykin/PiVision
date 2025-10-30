@@ -1,13 +1,8 @@
 import json, os
 
-# Shared location where both the Flask app and DeviceControl can access
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.abspath(os.path.join(script_dir, "..", ".."))
-temp_dir = os.path.join(project_root, "WebServerStream")
-os.makedirs(temp_dir, exist_ok=True)
+from paths import MAPPINGS_PATH, PASSWORD_PATH, TEMP_DIR
 
-MAPPINGS_PATH = os.path.join(temp_dir, "mappings.json")
-PASSWORD_PATH = os.path.join(temp_dir, "password.json")
+os.makedirs(TEMP_DIR, exist_ok=True)
 
 def update_gestures(mappings: dict):
     """Write updated mappings to a JSON file for DeviceControl to detect."""
