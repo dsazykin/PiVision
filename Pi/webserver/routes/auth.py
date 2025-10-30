@@ -137,7 +137,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             <body>
                 <h1>Enter password with gestures for {h.escape(username)}</h1>
                 <div class="blocks" id="passwordDisplay">Waiting for gestures...</div><br>
-                <img src="{{ url_for('stream.stream') }}" width="400" height="380"><br>
+                <img src="/stream" width="400" height="380"><br>
                 <button id="showPasswordBtn">Show Password</button>
                 <p><a href="/login">Go back and change username</a></p>
 
@@ -347,7 +347,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                 <p>Creating account for <b>{h.escape(username)}</b></p>
 
                 <div class="blocks" id="passwordDisplay">Waiting for gestures...</div><br>
-                <img src="{{ url_for('stream.stream') }}" width="400" height="380"><br><br>
+                <img src="/steam" width="400" height="380"><br><br>
                 <button id="showPasswordBtn">Show Password</button>
                 <p><a href="/signup">Go back and change username</a></p>
 
