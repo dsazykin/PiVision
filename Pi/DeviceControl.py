@@ -237,14 +237,14 @@ while not isLoggedIn:
         jsonValue = {"loggedIn": False}
     isLoggedIn = jsonValue.get("loggedIn")
 
-    try:
-        with open(PASSWORD_PATH) as handle:
-            jsonValue = json.load(handle)
-    except Exception:
-        jsonValue = {"value": False}
-    sendPassword = jsonValue.get("value")
-
     if not sendPassword:
+        try:
+            with open(PASSWORD_PATH) as handle:
+                jsonValue = json.load(handle)
+        except Exception:
+            jsonValue = {"value": False}
+        sendPassword = jsonValue.get("value")
+
         if sendPassword:
             recognize_gestures()
 
