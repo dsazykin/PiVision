@@ -136,11 +136,13 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
 
                 <script>
                     let showPassword = false;
+                    let isSubmitting = false;
                     const username = "{h.escape(username)}";
 
                     document.getElementById("showPasswordBtn").addEventListener("click", () => {{
                         showPassword = !showPassword;
-                        document.getElementById("showPasswordBtn").innerText = showPassword ? "Hide Password" : "Show Password";
+                        document.getElementById("showPasswordBtn").innerText =
+                            showPassword ? "Hide Password" : "Show Password";
                     }});
 
                     function updateProgress() {{
@@ -151,10 +153,11 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                                 const display = showPassword
                                     ? gestures.join(" ")
                                     : "● ".repeat(gestures.length);
-                                document.getElementById("passwordDisplay").innerText = display || "Waiting for gestures...";
+                                document.getElementById("passwordDisplay").innerText =
+                                    display || "Waiting for gestures...";
 
                                 if (data.done) {{
-                                    // Automatically submit password
+                                    isSubmitting = true;
                                     const formData = new FormData();
                                     formData.append("username", username);
                                     formData.append("password", gestures.join(""));
@@ -175,7 +178,13 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                             .catch(err => console.error(err));
                     }}
 
-                    setInterval(updateProgress, 100);
+                    setInterval(updateProgress, 300);
+
+                    window.addEventListener('beforeunload', () => {{
+                        if (!isSubmitting) {{
+                            navigator.sendBeacon('/password/cancel');
+                        }}
+                    }});
                 </script>
             </body>
             </html>
@@ -233,6 +242,12 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
 
         previousGesture = gesture
         return jsonify(GESTURE_PROGRESS)
+
+    @bp.route("/password/cancel", methods=["POST"])
+    def password_cancel():
+        """Endpoint to signal that password entry is being cancelled."""
+        entering_password(False)
+        return "", 204
 
     @bp.route("/signup", methods=["GET", "POST"])
     def signup_step1() -> Response | str:
@@ -337,11 +352,13 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
 
                 <script>
                     let showPassword = false;
+                    let isSubmitting = false;
                     const username = "{h.escape(username)}";
 
                     document.getElementById("showPasswordBtn").addEventListener("click", () => {{
                         showPassword = !showPassword;
-                        document.getElementById("showPasswordBtn").innerText = showPassword ? "Hide Password" : "Show Password";
+                        document.getElementById("showPasswordBtn").innerText =
+                            showPassword ? "Hide Password" : "Show Password";
                     }});
 
                     function updateProgress() {{
@@ -352,10 +369,11 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                                 const display = showPassword
                                     ? gestures.join(" ")
                                     : "● ".repeat(gestures.length);
-                                document.getElementById("passwordDisplay").innerText = display || "Waiting for gestures...";
+                                document.getElementById("passwordDisplay").innerText =
+                                    display || "Waiting for gestures...";
 
                                 if (data.done) {{
-                                    // Automatically send the signup request
+                                    isSubmitting = true;
                                     const formData = new FormData();
                                     formData.append("username", username);
                                     formData.append("password", gestures.join(""));
@@ -376,7 +394,13 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                             .catch(err => console.error(err));
                     }}
 
-                    setInterval(updateProgress, 500);
+                    const progressInterval = setInterval(updateProgress, 300);
+
+                    window.addEventListener('beforeunload', () => {{
+                        if (!isSubmitting) {{
+                            navigator.sendBeacon('/password/cancel');
+                        }}
+                    }});
                 </script>
             </body>
             </html>
@@ -434,5 +458,3 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         return response
 
     return bp
-
-
