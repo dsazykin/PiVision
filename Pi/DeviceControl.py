@@ -2,10 +2,10 @@ import cv2
 import onnxruntime as ort
 import numpy as np
 import mediapipe as mp
-import os, time, json, socket
+import os, time, socket
 import threading
 import inotify.adapters
-from webserver.paths import (FRAME_PATH, MAPPINGS_PATH, PROJECT_ROOT)
+from Pi.webserver.config.paths import (FRAME_PATH, MAPPINGS_PATH, PROJECT_ROOT)
 from SaveJson import update_current_gesture, update_password_gesture
 from ReadJson import check_loggedin, check_entering_password, get_new_mappings
 os.environ["QT_QPA_PLATFORM"] = "offscreen"

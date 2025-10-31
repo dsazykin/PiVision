@@ -13,7 +13,6 @@ from flask import Response
 from Pi.SaveJson import update_gestures, entering_password, update_loggedin
 from Pi.ReadJson import get_password_gesture
 from ..middleware import SessionManager
-from ..paths import LOGGEDIN_PATH, PASSWORD_GESTURE_PATH
 
 GESTURE_PROGRESS = {"gestures": [], "done": False}
 

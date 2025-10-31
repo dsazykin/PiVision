@@ -1,6 +1,6 @@
 import json, os
 
-from .webserver.paths import MAPPINGS_PATH, PASSWORD_PATH, TEMP_DIR, JSON_PATH, LOGGEDIN_PATH, PASSWORD_GESTURE_PATH
+from Pi.webserver.config.paths import MAPPINGS_PATH, PASSWORD_PATH, TEMP_DIR, JSON_PATH, LOGGEDIN_PATH, PASSWORD_GESTURE_PATH
 
 os.makedirs(TEMP_DIR, exist_ok=True)
 

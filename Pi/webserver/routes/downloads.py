@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import os
 
-from flask import Blueprint, Response, abort, request, send_file, url_for
+from flask import Blueprint, abort, request, send_file, url_for
 
-from ..middleware import SessionManager, get_request_session
-from ..paths import CONNECTION_SOFTWARE_PATH
+from ..middleware import SessionManager
+from Pi.webserver.config.paths import CONNECTION_SOFTWARE_PATH
 
 
 def create_blueprint(session_manager: SessionManager) -> Blueprint:

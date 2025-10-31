@@ -1,6 +1,6 @@
 import json
 
-from .webserver.paths import MAPPINGS_PATH, PASSWORD_PATH, TEMP_DIR, JSON_PATH, LOGGEDIN_PATH, PASSWORD_GESTURE_PATH
+from Pi.webserver.config.paths import MAPPINGS_PATH, PASSWORD_PATH, LOGGEDIN_PATH, PASSWORD_GESTURE_PATH
 
 def check_loggedin():
     """Check to see if the user is currently logged in."""

@@ -6,7 +6,7 @@ from flask import Flask, Response, url_for
 import Database
 
 from .middleware import SessionManager
-from .paths import STATIC_DIR
+from Pi.webserver.config.paths import STATIC_DIR
 from .routes import register_blueprints
 
 
