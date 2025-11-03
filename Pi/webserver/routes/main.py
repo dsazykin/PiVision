@@ -27,12 +27,11 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             <body>
             <div class="container">
                 <div class="header">
-                <div class="brand">
-                    <div class="brand-mark">
-                        <img src="{{ url_for('static', filename='images/PiVision_full_logo.png') }}" alt="Logo">
+                    <div class="brand">
+                        <div class="brand-mark">
+                            <h1>PiVision</h1>
+                        </div>
                     </div>
-                    <h1>PiVision</h1>
-                </div>
                 </div>
 
                 <div class="homepage_content_div center" style="max-width:600px;margin:0 auto;">
@@ -106,9 +105,8 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                     <div class="header">
                         <div class="brand">
                             <div class="brand-mark">
-                                <img src="{{ url_for('static', filename='images/PiVision_full_logo.png') }}" alt="Logo">
+                                <h1>PiVision</h1>
                             </div>
-                            <h1>PiVision</h1>
                         </div>
                         <div style="align-self:center;">
                             <a href="/logout" class="btn ghost">Log Out</a>
@@ -166,9 +164,8 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             <div class="header">
                 <div class="brand">
                     <div class="brand-mark">
-                        <img src="{{ url_for('static', filename='images/PiVision_full_logo.png') }}" alt="Logo">
+                        <h1>PiVision</h1>
                     </div>
-                    <h1>PiVision</h1>
                 </div>
             </div>
 
@@ -219,12 +216,11 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         </head><body>
         <div class="container">
             <div class="header">
-            <div class="brand">
-                <div class="brand-mark">
-                    <img src="{{ url_for('static', filename='images/PiVision_full_logo.png') }}" alt="Logo">
+                <div class="brand">
+                    <div class="brand-mark">
+                        <h1>PiVision</h1>
+                    </div>
                 </div>
-                <h1>PiVision</h1>
-            </div>
             </div>
 
             <div class="table-wrap">

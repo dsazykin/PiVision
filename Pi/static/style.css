@@ -47,28 +47,32 @@ body{
   gap: 12px;
   margin-bottom: 18px;
 }
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .brand-mark {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #4f46e5, var(--primary));
   display: flex;
   align-items: center;
   justify-content: center;
+  background: linear-gradient(135deg, #4f46e5, var(--primary));
+  border-radius: 10px;
   box-shadow: var(--shadow);
+  padding: 10px 16px;
+  color: white;
+  font-weight: 700;
+  font-size: 1.2rem;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
 }
-
-.brand-mark img {
-  width: 70%;
-  height: 70%;
-  object-fit: contain;
-}
-.brand h1 {
-  font-size: 1.15rem;
+.brand-mark h1 {
   margin: 0;
-  font-weight:600;
+  font-size: inherit;            
+  font-weight: inherit;
+  color: inherit;
 }
-
 /* homepage grid */
 .homepage_container_div {
   display: grid;
