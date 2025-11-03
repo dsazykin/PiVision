@@ -6,9 +6,8 @@ import time
 from typing import Iterator
 
 import cv2
-from flask import Response
 
-from .paths import FRAME_PATH, JSON_PATH
+from Pi.webserver.config.paths import FRAME_PATH, JSON_PATH
 
 
 def read_gesture_payload() -> dict[str, object]:

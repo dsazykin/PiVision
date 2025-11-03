@@ -2,23 +2,16 @@
 from __future__ import annotations
 
 import html as h
-from flask import Blueprint, Response, make_response, redirect, request, url_for, jsonify
+from flask import Blueprint, make_response, redirect, request, url_for, jsonify
 
-import Database
-import json
-import os
 import threading
 import random
 from flask import Response
 
-from ..SaveJson import update_gestures, entering_password
+from Pi.SaveJson import update_gestures, entering_password, update_loggedin
+from Pi.ReadJson import get_password_gesture
 from ..middleware import SessionManager
-
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.abspath(os.path.join(script_dir, "..", "..", ".."))
-temp_dir = os.path.join(project_root, "WebServerStream")
-LOGGEDIN_PATH = os.path.join(temp_dir, "loggedIn.json")
-PASSWORD_PATH = os.path.join(temp_dir, "password.json")
+from ... import Database
 
 GESTURE_PROGRESS = {"gestures": [], "done": False}
 
@@ -39,7 +32,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             candidate_username = f"{base_name}{unique_signature}"
             if not Database.get_user(candidate_username):
                 return candidate_username
-
+            
     @bp.route("/login", methods=["GET", "POST"])
     def login_step1() -> Response | str:
         active_session = session_manager.get_active_session()
@@ -136,31 +129,34 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             <body>
                 <h1>Enter password with gestures for {h.escape(username)}</h1>
                 <div class="blocks" id="passwordDisplay">Waiting for gestures...</div><br>
-                <img src="{{ url_for('auth.stream') }}" width="400" height="380"><br>
+                <img src="/stream" width="400" height="380"><br>
                 <button id="showPasswordBtn">Show Password</button>
                 <p><a href="/login">Go back and change username</a></p>
 
                 <script>
                     let showPassword = false;
+                    let isSubmitting = false;
                     const username = "{h.escape(username)}";
 
                     document.getElementById("showPasswordBtn").addEventListener("click", () => {{
                         showPassword = !showPassword;
-                        document.getElementById("showPasswordBtn").innerText = showPassword ? "Hide Password" : "Show Password";
+                        document.getElementById("showPasswordBtn").innerText =
+                            showPassword ? "Hide Password" : "Show Password";
                     }});
 
                     function updateProgress() {{
-                        fetch('/login/password/status')
+                        fetch('/password/status')
                             .then(res => res.json())
                             .then(data => {{
                                 const gestures = data.gestures || [];
                                 const display = showPassword
                                     ? gestures.join(" ")
                                     : "● ".repeat(gestures.length);
-                                document.getElementById("passwordDisplay").innerText = display || "Waiting for gestures...";
+                                document.getElementById("passwordDisplay").innerText =
+                                    display || "Waiting for gestures...";
 
                                 if (data.done) {{
-                                    // Automatically submit password
+                                    isSubmitting = true;
                                     const formData = new FormData();
                                     formData.append("username", username);
                                     formData.append("password", gestures.join(""));
@@ -181,7 +177,13 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                             .catch(err => console.error(err));
                     }}
 
-                    setInterval(updateProgress, 100);
+                    setInterval(updateProgress, 300);
+
+                    window.addEventListener('beforeunload', () => {{
+                        if (!isSubmitting) {{
+                            navigator.sendBeacon('/password/cancel');
+                        }}
+                    }});
                 </script>
             </body>
             </html>
@@ -209,11 +211,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                 max_age=7200,
             )
 
-            try:
-                with open(LOGGEDIN_PATH, 'w') as f:
-                    json.dump({"loggedIn": True}, f)
-            except Exception as e:
-                print("Error writing JSON:", e)
+            update_loggedin(True)
 
             return response
 
@@ -224,30 +222,31 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         )
 
     previousGesture = "none"
-    @bp.route("/login/password/status", methods=["GET"])
+    @bp.route("/password/status", methods=["GET"])
     def password_status():
         """Returns live progress of received gestures."""
-        global previousGesture
+        nonlocal previousGesture
 
-        try:
-            with open(PASSWORD_PATH) as handle:
-                jsonValue = json.load(handle)
-        except Exception:
-            jsonValue = {"gesture": False}
-
-        gesture = jsonValue.get("gesture")
+        gesture = get_password_gesture()
 
         # Only update if new gesture received
         if gesture == "stop":
             GESTURE_PROGRESS["done"] = True
-        elif gesture == "stop_inverted":
+        elif gesture == "stop_inverted" and gesture != previousGesture:
             if GESTURE_PROGRESS["gestures"]:
                 GESTURE_PROGRESS["gestures"].pop()
-        elif gesture and gesture not in (False, "False") and gesture != "none" and gesture != previousGesture:
-            previousGesture = gesture
+        elif (gesture and gesture not in (False,
+                                          "False") and gesture != "none" and gesture != previousGesture):
             GESTURE_PROGRESS["gestures"].append(gesture)
 
+        previousGesture = gesture
         return jsonify(GESTURE_PROGRESS)
+
+    @bp.route("/password/cancel", methods=["POST"])
+    def password_cancel():
+        """Endpoint to signal that password entry is being cancelled."""
+        entering_password(False)
+        return "", 204
 
     @bp.route("/signup", methods=["GET", "POST"])
     def signup_step1() -> Response | str:
@@ -346,31 +345,34 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                 <p>Creating account for <b>{h.escape(username)}</b></p>
 
                 <div class="blocks" id="passwordDisplay">Waiting for gestures...</div><br>
-                <img src="{{ url_for('auth.stream') }}" width="400" height="380"><br><br>
+                <img src="/stream" width="400" height="380"><br><br>
                 <button id="showPasswordBtn">Show Password</button>
                 <p><a href="/signup">Go back and change username</a></p>
 
                 <script>
                     let showPassword = false;
+                    let isSubmitting = false;
                     const username = "{h.escape(username)}";
 
                     document.getElementById("showPasswordBtn").addEventListener("click", () => {{
                         showPassword = !showPassword;
-                        document.getElementById("showPasswordBtn").innerText = showPassword ? "Hide Password" : "Show Password";
+                        document.getElementById("showPasswordBtn").innerText =
+                            showPassword ? "Hide Password" : "Show Password";
                     }});
 
                     function updateProgress() {{
-                        fetch('/signup/password/status')
+                        fetch('/password/status')
                             .then(res => res.json())
                             .then(data => {{
                                 const gestures = data.gestures || [];
                                 const display = showPassword
                                     ? gestures.join(" ")
                                     : "● ".repeat(gestures.length);
-                                document.getElementById("passwordDisplay").innerText = display || "Waiting for gestures...";
+                                document.getElementById("passwordDisplay").innerText =
+                                    display || "Waiting for gestures...";
 
                                 if (data.done) {{
-                                    // Automatically send the signup request
+                                    isSubmitting = true;
                                     const formData = new FormData();
                                     formData.append("username", username);
                                     formData.append("password", gestures.join(""));
@@ -391,7 +393,13 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                             .catch(err => console.error(err));
                     }}
 
-                    setInterval(updateProgress, 500);
+                    const progressInterval = setInterval(updateProgress, 300);
+
+                    window.addEventListener('beforeunload', () => {{
+                        if (!isSubmitting) {{
+                            navigator.sendBeacon('/password/cancel');
+                        }}
+                    }});
                 </script>
             </body>
             </html>
@@ -425,11 +433,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                 max_age=7200,
             )
 
-            try:
-                with open(LOGGEDIN_PATH, 'w') as f:
-                    json.dump({"loggedIn": True}, f)
-            except Exception as e:
-                print("Error writing JSON:", e)
+            update_loggedin(True)
 
             return response
 
@@ -441,30 +445,6 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         except Exception as exc:
             return f"<h1>Unexpected Error</h1><p>{str(exc)}</p>"
 
-    @bp.route("/signup/password/status", methods=["GET"])
-    def signup_password_status():
-        """Live endpoint for gesture-based password progress during signup."""
-        global previousGesture
-
-        try:
-            with open(PASSWORD_PATH) as handle:
-                jsonValue = json.load(handle)
-        except Exception:
-            jsonValue = {"gesture": False}
-
-        gesture = jsonValue.get("gesture")
-
-        if gesture == "stop":
-            GESTURE_PROGRESS["done"] = True
-        elif gesture == "stop_inverted":
-            if GESTURE_PROGRESS["gestures"]:
-                GESTURE_PROGRESS["gestures"].pop()
-        elif (gesture and gesture not in (False, "False") and gesture != "none" and gesture != previousGesture):
-            previousGesture = gesture
-            GESTURE_PROGRESS["gestures"].append(gesture)
-
-        return jsonify(GESTURE_PROGRESS)
-
     @bp.route("/logout")
     def logout() -> Response:
         token = request.cookies.get("session_token")
@@ -472,13 +452,8 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             Database.delete_session(token)
         response = make_response(redirect(url_for("auth.login_step1")))
         response.delete_cookie("session_token")
-        try:
-            with open(LOGGEDIN_PATH, 'w') as f:
-                json.dump({"loggedIn": False}, f)
-        except Exception as e:
-            print("Error writing JSON: ", e)
+
+        update_loggedin(False)
         return response
 
     return bp
-
-
