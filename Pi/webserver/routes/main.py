@@ -37,12 +37,14 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
 
                 <div class="homepage_content_div center" style="max-width:600px;margin:0 auto;">
                 <h2>Welcome to the Gesture Control Web App</h2>
-                <p class="lead">Manage users and gesture recognition from this interface.</p>
+                <p class="lead">Create an account and manage your mappings.</p>
                 <div style="margin-top:18px;">
                     <a href="/login" class="btn">Login</a>
                     <a href="/signup" class="btn ghost" style="margin-left:8px;">Sign Up</a>
                     <br/>
-                    <a href="{download_url}" class="btn green">Download Connection Software</a>
+                    <a href="{download_url}" class="btn green" style="margin-top:10px;">Download 
+                    Connection 
+                    Software</a>
                 </div>
                 </div>
             </div>
@@ -123,7 +125,6 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                                 <div style="margin-top:12px; display:flex; flex-direction:column; gap:10px; align-items:center;">
                                     <a href="/mappings/{safe_name}" class="btn">Edit Gesture Mappings</a>
                                     <a href="/delete/{safe_name}" class="btn danger">Delete My Account</a>
-                                    <a href="/logout" class="btn ghost">Log Out</a>
                                 </div>
                             </div>
                         </div>
