@@ -317,8 +317,6 @@ while True:
         except KeyboardInterrupt:
             print("\nStopped by user.")
         finally:
-            cap.release()
-            sock.close()
             empty_frame = np.zeros((480, 640, 3), dtype=np.uint8)
             cv2.imwrite(FRAME_PATH, empty_frame)  # Clear the frame
             update_current_gesture({"gesture": "none", "confidence": 0.0}) # Clear last detected gesture
