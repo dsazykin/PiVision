@@ -5,9 +5,8 @@ import html as h
 
 from flask import Blueprint, Response, redirect, request, url_for
 
-import Database
-
 from ..middleware import SessionManager, get_request_session
+from ... import Database
 
 
 def create_blueprint(session_manager: SessionManager) -> Blueprint:

@@ -4,8 +4,6 @@ from __future__ import annotations
 import html as h
 from flask import Blueprint, make_response, redirect, request, url_for, jsonify
 
-import Database
-import json
 import threading
 import random
 from flask import Response
@@ -13,6 +11,7 @@ from flask import Response
 from Pi.SaveJson import update_gestures, entering_password, update_loggedin
 from Pi.ReadJson import get_password_gesture
 from ..middleware import SessionManager
+from ... import Database
 
 GESTURE_PROGRESS = {"gestures": [], "done": False}
 

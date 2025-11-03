@@ -3,11 +3,10 @@ from __future__ import annotations
 
 from flask import Blueprint, Response, redirect, request, url_for
 
-import Database
-
 from Pi.SaveJson import update_gestures
 
 from ..middleware import SessionManager, get_request_session
+from ... import Database
 
 def create_blueprint(session_manager: SessionManager) -> Blueprint:
     bp = Blueprint("mappings", __name__)
