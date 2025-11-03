@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import os
 
-WEBSERVER_DIR = os.path.dirname(os.path.abspath(__file__))
+FILE_DIR = os.path.dirname(os.path.abspath(__file__))
+WEBSERVER_DIR = os.path.abspath(os.path.join(FILE_DIR, ".."))
 PI_DIR = os.path.abspath(os.path.join(WEBSERVER_DIR, ".."))
 PROJECT_ROOT = os.path.abspath(os.path.join(PI_DIR, ".."))
 
