@@ -228,37 +228,75 @@ def add_text(frame: np.ndarray, top3: list[tuple[str, float]]):
 
 # --------------- MAIN LOOP ----------------
 isLoggedIn = False
+try:
+    while True:
+        isLoggedIn = check_loggedin() # Is the user logged in?
 
-while True:
-    isLoggedIn = check_loggedin() # Is the user logged in?
+        sendPassword = check_entering_password() # Is the user inputting a password
 
-    sendPassword = check_entering_password() # Is the user inputting a password
+        if sendPassword:
+            send_password_gestures()
 
-    if sendPassword:
-        send_password_gestures()
+        if isLoggedIn:
+            try:
+                while isLoggedIn:
+                    data = {"gesture": "none", "confidence": 0.0} # Initialise the default json
 
-    if isLoggedIn:
-        try:
-            while isLoggedIn:
-                data = {"gesture": "none", "confidence": 0.0} # Initialise the default json
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
 
-                ret, frame = cap.read()
-                if not ret:
-                    break
+                    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    results = mp_hands.process(rgb)
 
-                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                results = mp_hands.process(rgb)
+                    if results.multi_hand_landmarks: # Is there a hand detected?
+                        for hand_landmarks in results.multi_hand_landmarks:
 
-                if results.multi_hand_landmarks: # Is there a hand detected?
-                    for hand_landmarks in results.multi_hand_landmarks:
+                            # Pass into the ML model to recognise gestures
+                            label, top3 = process_frame(frame, hand_landmarks)
 
-                        # Pass into the ML model to recognise gestures
-                        label, top3 = process_frame(frame, hand_landmarks)
+                            # If the detected gesture changed from the previous frame
+                            if label != previous_gesture:
+                                # Was the previous input sent, and was it a hold input?
+                                if input_sent and mappings.get(previous_gesture)[1] == "hold":
+                                    # Send release command to device
+                                    msg = "release" + " " + mappings.get(previous_gesture)[0]
+                                    send_gesture(msg)
 
-                        # If the detected gesture changed from the previous frame
-                        if label != previous_gesture:
+                                # Reset variables
+                                hold_gesture = False
+                                input_sent = False
+                                previous_gesture = label
+                                frame_count = 0
+
+                            # Has the current gesture been held long enough?
+                            if frame_count == minimum_hold or hold_gesture:
+                                hold_gesture = True
+                                frame_count = 0
+                                print("Detected Gesture: " + label)
+                                data = {"gesture": label, "confidence": float(top3[0][1])}
+
+                                # Has this input already been sent to the device?
+                                if not input_sent:
+                                    msg = mappings.get(label)[1] + " " + mappings.get(label)[0]
+                                    send_gesture(msg)
+
+                                input_sent = True
+
+                            # Gesture hasn't changed but is still held
+                            elif label == previous_gesture:
+                                frame_count += 1
+
+                            mp_draw.draw_landmarks(frame, hand_landmarks,
+                                                   mp.solutions.hands.HAND_CONNECTIONS)
+
+                            add_text(frame, top3) # Add text to the frame to show the 3 most likely gestures
+                    # No hand detected in frame
+                    else:
+                        # Was there a hand in the previous frame?
+                        if previous_gesture != "":
                             # Was the previous input sent, and was it a hold input?
-                            if input_sent and mappings.get(previous_gesture)[1] == "hold":
+                            if input_sent and mappings.get(previous_gesture)[1] == "hold":\
                                 # Send release command to device
                                 msg = "release" + " " + mappings.get(previous_gesture)[0]
                                 send_gesture(msg)
@@ -266,57 +304,25 @@ while True:
                             # Reset variables
                             hold_gesture = False
                             input_sent = False
-                            previous_gesture = label
                             frame_count = 0
+                            previous_gesture = ""
 
-                        # Has the current gesture been held long enough?
-                        if frame_count == minimum_hold or hold_gesture:
-                            hold_gesture = True
-                            frame_count = 0
-                            print("Detected Gesture: " + label)
-                            data = {"gesture": label, "confidence": float(top3[0][1])}
+                    cv2.imwrite(FRAME_PATH, frame) # Store the frame so that the webserver can fetch it
+                    update_current_gesture(data) # Store the detected gesture
 
-                            # Has this input already been sent to the device?
-                            if not input_sent:
-                                msg = mappings.get(label)[1] + " " + mappings.get(label)[0]
-                                send_gesture(msg)
+                    isLoggedIn = check_loggedin() # Check if the user is still logged in
 
-                            input_sent = True
+                    time.sleep(0.05)
+            finally:
+                empty_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+                cv2.imwrite(FRAME_PATH, empty_frame)  # Clear the frame
+                update_current_gesture({"gesture": "none", "confidence": 0.0}) # Clear last detected gesture
 
-                        # Gesture hasn't changed but is still held
-                        elif label == previous_gesture:
-                            frame_count += 1
-
-                        mp_draw.draw_landmarks(frame, hand_landmarks,
-                                               mp.solutions.hands.HAND_CONNECTIONS)
-
-                        add_text(frame, top3) # Add text to the frame to show the 3 most likely gestures
-                # No hand detected in frame
-                else:
-                    # Was there a hand in the previous frame?
-                    if previous_gesture != "":
-                        # Was the previous input sent, and was it a hold input?
-                        if input_sent and mappings.get(previous_gesture)[1] == "hold":\
-                            # Send release command to device
-                            msg = "release" + " " + mappings.get(previous_gesture)[0]
-                            send_gesture(msg)
-
-                        # Reset variables
-                        hold_gesture = False
-                        input_sent = False
-                        frame_count = 0
-                        previous_gesture = ""
-
-                cv2.imwrite(FRAME_PATH, frame) # Store the frame so that the webserver can fetch it
-                update_current_gesture(data) # Store the detected gesture
-
-                isLoggedIn = check_loggedin() # Check if the user is still logged in
-
-                time.sleep(0.05)
-
-        except KeyboardInterrupt:
-            print("\nStopped by user.")
-        finally:
-            empty_frame = np.zeros((480, 640, 3), dtype=np.uint8)
-            cv2.imwrite(FRAME_PATH, empty_frame)  # Clear the frame
-            update_current_gesture({"gesture": "none", "confidence": 0.0}) # Clear last detected gesture
+except KeyboardInterrupt:
+    print("\nStopped by user.")
+    cap.release()
+    sock.close()
+finally:
+    empty_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    cv2.imwrite(FRAME_PATH, empty_frame)  # Clear the frame
+    update_current_gesture({"gesture": "none", "confidence": 0.0})  # Clear last detected gesture
