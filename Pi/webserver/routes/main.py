@@ -15,7 +15,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
 
     @bp.route("/")
     def index() -> str:
-        return """
+        return f"""
             <!doctype html>
             <html>
             <head>
@@ -28,8 +28,10 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             <div class="container">
                 <div class="header">
                 <div class="brand">
-                    <div class="brand-mark">GC</div>
-                    <h1>Gesture Control</h1>
+                    <div class="brand-mark">
+                        <img src="{{ url_for('static', filename='images/PiVision_full_logo.png') }}" alt="Logo">
+                    </div>
+                    <h1>PiVision</h1>
                 </div>
                 </div>
 
@@ -100,73 +102,42 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             </script>
             </head>
             <body>
-            <div class="container">
-                <div class="header">
-                <div class="brand">
-                    <div class="brand-mark">GC</div>
-                    <h1>Pi Vision Gestures</h1>
-                </div>
-                <div style="align-self:center;">
-                    <a href="/logout" class="btn ghost">Log Out</a>
-                </div>
-                </div>
-
-                <div class="homepage_container_div">
-                <div class="homepage_content_div center">
-                    <div style="max-width: 420px;">
-                    <h2>Welcome, {safe_name}</h2>
-                    <p class="lead">Choose an action</p>
-
-                    <div style="margin-top:12px; display:flex; flex-direction:column; gap:10px; align-items:center;">
-                        <a href="/mappings/{safe_name}" class="btn">Edit Gesture Mappings</a>
-                        <a href="{download_url}" class="btn green">Download Connection Software</a>
-                        <a href="/delete/{safe_name}" class="btn danger">Delete My Account</a>
-                        <a href="/logout" class="btn ghost">Log Out</a>
+                <div class="container">
+                    <div class="header">
+                        <div class="brand">
+                            <div class="brand-mark">
+                                <img src="{{ url_for('static', filename='images/PiVision_full_logo.png') }}" alt="Logo">
+                            </div>
+                            <h1>PiVision</h1>
+                        </div>
+                        <div style="align-self:center;">
+                            <a href="/logout" class="btn ghost">Log Out</a>
+                        </div>
                     </div>
+                    <div class="homepage_container_div">
+                        <div class="homepage_content_div center">
+                            <div style="max-width: 420px;">
+                                <h2>Welcome, {safe_name}</h2>
+                                <p class="lead">Choose an action</p>
+
+                                <div style="margin-top:12px; display:flex; flex-direction:column; gap:10px; align-items:center;">
+                                    <a href="/mappings/{safe_name}" class="btn">Edit Gesture Mappings</a>
+                                    <a href="{download_url}" class="btn green">Download Connection Software</a>
+                                    <a href="/delete/{safe_name}" class="btn danger">Delete My Account</a>
+                                    <a href="/logout" class="btn ghost">Log Out</a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="homepage_content_div gesture-display">
+                            <h1 id="g">Loading...</h1>
+                            <p>Confidence: <strong id="c">--%</strong></p>
+                            <a href="/video" class="btn ghost">View Live Stream ▶</a>
+                        </div>
                     </div>
                 </div>
-
-                <div class="homepage_content_div gesture-display">
-                    <h1 id="g">Loading...</h1>
-                    <p>Confidence: <strong id="c">--%</strong></p>
-                    <a href="/video" class="btn ghost">View Live Stream ▶</a>
-                </div>
-                </div>
-            </div>
             </body>
             </html>
             """
-
-
-        #return f"""
-        """
-        <html><head><title>Pi Vision Gestures</title>
-        <script>
-        const eventSource = new EventSource("/gesture");
-        eventSource.onmessage = function(event) {{
-            const data = JSON.parse(event.data);
-            document.getElementById('g').innerText = data.gesture;
-            document.getElementById('c').innerText = (data.confidence*100).toFixed(1)+'%';
-        }};
-        </script></head>
-        <div class='homepage_container_div'>
-            <div class='homepage_content_div'>
-                <body style="text-align:center;font-family:sans-serif;margin-top:40px">
-                <h1>Welcome, {safe_name}</h1>
-                <p>Choose an action:</p>
-                <a href="/mappings/{safe_name}"><button>Edit Gesture Mappings</button></a><br><br>
-                <a href="{download_url}"><button style='background:green;'>Download Connection Software</button></a><br><br>
-                <a href="/delete/{safe_name}"><button style='background:red;'>Delete My Account</button></a><br><br>
-                <a href="/logout"><button>Log Out</button></a>
-            </div>
-            <div class='homepage_content_div'>
-                <h1 id="g">Loading...</h1>
-                <p>Confidence: <span id="c">--%</span></p>
-                <a href="/video">View Live Stream ▶</a>
-            </div>
-        </div>
-        </body></html>
-        """
 
     @bp.route("/database")
     def show_database() -> str:
@@ -185,7 +156,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             )
 
         # after you build databaseinfo[]
-        html = """<!doctype html>
+        html = f"""<!doctype html>
         <html><head>
         <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
         <title>Database - Users</title>
@@ -193,10 +164,12 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         </head><body>
         <div class="container">
             <div class="header">
-            <div class="brand">
-                <div class="brand-mark">DB</div>
-                <h1>Database Overview</h1>
-            </div>
+                <div class="brand">
+                    <div class="brand-mark">
+                        <img src="{{ url_for('static', filename='images/PiVision_full_logo.png') }}" alt="Logo">
+                    </div>
+                    <h1>PiVision</h1>
+                </div>
             </div>
 
             <div class="db_container_div">
@@ -247,8 +220,10 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         <div class="container">
             <div class="header">
             <div class="brand">
-                <div class="brand-mark">S</div>
-                <h1>Active Sessions</h1>
+                <div class="brand-mark">
+                    <img src="{{ url_for('static', filename='images/PiVision_full_logo.png') }}" alt="Logo">
+                </div>
+                <h1>PiVision</h1>
             </div>
             </div>
 

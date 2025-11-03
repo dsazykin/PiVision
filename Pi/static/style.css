@@ -47,21 +47,21 @@ body{
   gap: 12px;
   margin-bottom: 18px;
 }
-.brand {
-  display:flex;
-  align-items:center;
-  gap:12px;
-}
 .brand-mark {
-  width:44px;
-  height:44px;
-  border-radius:10px;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
   background: linear-gradient(135deg, #4f46e5, var(--primary));
-  color:white;
-  display:inline-grid;
-  place-items:center;
-  font-weight:700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   box-shadow: var(--shadow);
+}
+
+.brand-mark img {
+  width: 70%;
+  height: 70%;
+  object-fit: contain;
 }
 .brand h1 {
   font-size: 1.15rem;
