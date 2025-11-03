@@ -5,9 +5,10 @@ import mediapipe as mp
 import os, time, socket
 import threading
 import inotify.adapters
+
 from Pi.webserver.config.paths import (FRAME_PATH, MAPPINGS_PATH, PROJECT_ROOT)
-from SaveJson import update_current_gesture, update_password_gesture
-from ReadJson import check_loggedin, check_entering_password, get_new_mappings
+from Pi.SaveJson import update_current_gesture, update_password_gesture
+from Pi.ReadJson import check_loggedin, check_entering_password, get_new_mappings
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 sendPassword = False
