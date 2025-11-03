@@ -225,14 +225,14 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
     @bp.route("/password/status", methods=["GET"])
     def password_status():
         """Returns live progress of received gestures."""
-        global previousGesture
+        nonlocal previousGesture
 
         gesture = get_password_gesture()
 
         # Only update if new gesture received
         if gesture == "stop":
             GESTURE_PROGRESS["done"] = True
-        elif gesture == "stop_inverted" and previousGesture != "stop_inverted":
+        elif gesture == "stop_inverted" and gesture != previousGesture:
             if GESTURE_PROGRESS["gestures"]:
                 GESTURE_PROGRESS["gestures"].pop()
         elif (gesture and gesture not in (False,
