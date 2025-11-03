@@ -244,9 +244,8 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             elif (gesture and gesture not in (False, "False", "none") and gesture != previousGesture):
                 GESTURE_PROGRESS["gestures"].append(gesture)
 
-            if gesture != "none":
-                previousGesture = gesture
-                print("new previous gesture: ", previousGesture)
+            previousGesture = gesture
+            print("new previous gesture: ", previousGesture)
             return jsonify(GESTURE_PROGRESS)
 
     @bp.route("/password/cancel", methods=["POST"])
