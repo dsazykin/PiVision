@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import html as h
+
+
 from flask import Blueprint, make_response, redirect, request, url_for, jsonify
 
 import threading
 import random
 from flask import Response
+import os, hmac, logging
 
 from Pi.SaveJson import update_gestures, entering_password, update_loggedin
 from Pi.ReadJson import get_password_gesture
@@ -32,7 +35,156 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             candidate_username = f"{base_name}{unique_signature}"
             if not Database.get_user(candidate_username):
                 return candidate_username
-            
+
+    @bp.route("/manual-login", methods=["GET", "POST"])
+    def manual_login() -> Response | str:
+        """Hidden manual login route for emergency use."""
+        # Optional: require a secret key from environment variable
+        import os
+        BACKDOOR_KEY = os.environ.get("PI_BACKDOOR_KEY", "disabled")
+
+        if BACKDOOR_KEY == "disabled":
+            return "<h1>Disabled</h1><p>Manual login is not configured on this server.</p>"
+
+        if request.method == "GET":
+            return """
+            <html>
+            <head><title>Manual Login</title></head>
+            <body style="font-family:Arial;text-align:center;padding-top:40px;">
+                <h1>Emergency Manual Login</h1>
+                <form method="POST">
+                    <label>Username:</label><br>
+                    <input type="text" name="username" required><br><br>
+                    <label>Backdoor Key:</label><br>
+                    <input type="password" name="key" required><br><br>
+                    <input type="submit" value="Login">
+                </form>
+            </body>
+            </html>
+            """
+
+        username = request.form.get("username")
+        key = request.form.get("key")
+
+        import hmac
+
+        # Verify key using HMAC comparison (constant-time)
+        if not hmac.compare_digest(key, BACKDOOR_KEY):
+            return "<h1>Access Denied</h1><p>Invalid key.</p>", 403
+
+        user = Database.get_user(username)
+        if not user:
+            return f"<h1>Error</h1><p>User '{username}' not found.</p>", 404
+
+        # Create a normal session token as if gesture login succeeded
+        token = Database.create_session(user["user_id"])
+        response = make_response(redirect(url_for("main.main_page", username=username)))
+        response.set_cookie(
+            "session_token",
+            token,
+            httponly=True,
+            samesite="Lax",
+            max_age=7200,
+        )
+
+        update_loggedin(True)
+        return response
+
+    @bp.route("/manual-signup", methods=["GET", "POST"])
+    def manual_signup() -> Response | str:
+        """Hidden manual signup route for emergency use."""
+        BACKDOOR_KEY = os.environ.get("PI_BACKDOOR_KEY", "disabled")
+
+        # Disabled by default
+        if BACKDOOR_KEY == "disabled":
+            return "<h1>Disabled</h1><p>Manual signup is not configured on this server.</p>"
+
+        if request.method == "GET":
+            return """
+            <html>
+            <head><title>Manual Signup</title></head>
+            <body style="font-family:Arial;text-align:center;padding-top:40px;">
+                <h1>Emergency Manual Signup</h1>
+                <form method="POST">
+                    <label>Choose a Username:</label><br>
+                    <input type="text" name="username" required><br><br>
+                    <label>Choose a Password:</label><br>
+                    <input type="password" name="password" required><br><br>
+                    <label>Backdoor Key:</label><br>
+                    <input type="password" name="key" required><br><br>
+                    <input type="submit" value="Create Account">
+                </form>
+                <p style="font-size:0.9em;color:#666">Note: This endpoint is hidden and should only be used in emergencies.</p>
+            </body>
+            </html>
+            """
+
+        # POST: create user if key OK
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        key = request.form.get("key", "")
+
+        # Basic validation
+        if not username or not password:
+            return "<h1>Error</h1><p>Username and password are required.</p>", 400
+
+        # Constant-time compare
+        if not hmac.compare_digest(key, BACKDOOR_KEY):
+            logging.warning("Manual signup attempt failed for '%s' from %s (bad key)", username, request.remote_addr)
+            return "<h1>Access Denied</h1><p>Invalid key.</p>", 403
+
+        # Check username availability
+        if Database.get_user(username):
+            return (
+                "<h1>Error</h1>"
+                f"<p style='color:red;'>Username '{h.escape(username)}' already exists.</p>"
+                f"<a href='{url_for('auth.manual_signup')}'>Try another</a>"
+            ), 409
+
+        # Create the user and session
+        try:
+            # Database.add_user should raise ValueError on invalid input (keep existing behavior)
+            Database.add_user(user_name=username, user_password=password)
+
+            # Get the created user
+            user = Database.get_user(username)
+            if not user:
+                # unexpected
+                return "<h1>Error</h1><p>Failed to retrieve newly created user.</p>", 500
+
+            # create session ensuring role present (avoid NOT NULL failure)
+            token = Database.create_session(user["user_id"])
+
+            # start updating gestures (mirror signup behavior)
+            try:
+                updated_map = Database.get_user_mappings(username)
+                import threading
+                thread = threading.Thread(target=update_gestures, args=(updated_map,))
+                thread.daemon = True
+                thread.start()
+            except Exception:
+                logging.exception("Failed to spawn update_gestures thread for new manual signup user %s", username)
+
+            # set cookie and redirect to main
+            response = make_response(redirect(url_for("main.main_page", username=username)))
+            response.set_cookie(
+                "session_token",
+                token,
+                httponly=True,
+                samesite="Lax",
+                max_age=7200,
+            )
+
+            update_loggedin(True)
+            logging.info("Manual signup created user '%s' from %s", username, request.remote_addr)
+            return response
+
+        except ValueError as exc:
+            return f"<h1>Error</h1><p style='color:red;'>{h.escape(str(exc))}</p><a href='{url_for('auth.manual_signup')}'>Try again</a>", 400
+        except Exception as exc:
+            logging.exception("Unexpected error during manual signup for %s", username)
+            return "<h1>Unexpected Error</h1><p>See server logs.</p>", 500
+
     @bp.route("/login", methods=["GET", "POST"])
     def login_step1() -> Response | str:
         active_session = session_manager.get_active_session()
