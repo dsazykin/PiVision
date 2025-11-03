@@ -118,7 +118,7 @@ input_sent = False      # Has this gesture input already been sent to the connec
 # --------------- GESTURE DETECTION METHODS ----------------
 def send_password_gestures():
     """Gesture recognition code used only to recognise gestures and send them for password input """
-    global sendPassword, previous_gesture, frame_count, minimum_hold
+    global sendPassword, previous_gesture, frame_count, minimum_hold, hold_gesture
 
     try:
         while sendPassword:
@@ -141,14 +141,17 @@ def send_password_gestures():
                                                   # previous frame
                         previous_gesture = label
                         frame_count = 0 # Reset how long gesture has been held
+                        hold_gesture = False
 
-                    if frame_count == minimum_hold: # Has the current gesture been held long enough?
+                    if frame_count == minimum_hold or hold_gesture: # Has the current gesture been held long enough?
                         frame_count = 0
                         print("detected gesture: ", label)
                         data = {"gesture": label} # Update json so that is stores detected gesture
+                        hold_gesture = True
 
                         if label == "stop": # Is the user submitting the form?
                             sendPassword = False # Stop password input
+                            hold_gesture = False
 
                     elif label == previous_gesture: # Gesture hasn't changed but is still held
                         frame_count += 1
@@ -161,6 +164,7 @@ def send_password_gestures():
                 if previous_gesture != "": # Was there a hand in the previous frame
                     frame_count = 0
                     previous_gesture = ""
+                    hold_gesture = False
 
             cv2.imwrite(FRAME_PATH, frame) # Store the frame so that the webserver can fetch it
             update_password_gesture(data) # Store the detected gesture
