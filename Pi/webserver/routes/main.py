@@ -15,6 +15,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
 
     @bp.route("/")
     def index() -> str:
+        download_url = url_for("downloads.download_page")
         return f"""
             <!doctype html>
             <html>
@@ -40,6 +41,8 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                 <div style="margin-top:18px;">
                     <a href="/login" class="btn">Login</a>
                     <a href="/signup" class="btn ghost" style="margin-left:8px;">Sign Up</a>
+                    <br/>
+                    <a href="{download_url}" class="btn green">Download Connection Software</a>
                 </div>
                 </div>
             </div>
@@ -82,7 +85,6 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         if session_user != username:
             return redirect(url_for("main.main_page", username=session_user))
 
-        download_url = url_for("downloads.download_page")
         safe_name = h.escape(session["user_name"])
 
         return f"""<!doctype html>
@@ -120,7 +122,6 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
 
                                 <div style="margin-top:12px; display:flex; flex-direction:column; gap:10px; align-items:center;">
                                     <a href="/mappings/{safe_name}" class="btn">Edit Gesture Mappings</a>
-                                    <a href="{download_url}" class="btn green">Download Connection Software</a>
                                     <a href="/delete/{safe_name}" class="btn danger">Delete My Account</a>
                                     <a href="/logout" class="btn ghost">Log Out</a>
                                 </div>
