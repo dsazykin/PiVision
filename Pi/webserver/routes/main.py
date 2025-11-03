@@ -101,39 +101,39 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             </script>
             </head>
             <body>
-            <div class="container">
-                <div class="header">
-                <div class="brand">
-                    <div class="brand-mark">GC</div>
-                    <h1>Pi Vision Gestures</h1>
-                </div>
-                <div style="align-self:center;">
-                    <a href="/logout" class="btn ghost">Log Out</a>
-                </div>
-                </div>
-
-                <div class="homepage_container_div">
-                <div class="homepage_content_div center">
-                    <div style="max-width: 420px;">
-                    <h2>Welcome, {safe_name}</h2>
-                    <p class="lead">Choose an action</p>
-
-                    <div style="margin-top:12px; display:flex; flex-direction:column; gap:10px; align-items:center;">
-                        <a href="/mappings/{safe_name}" class="btn">Edit Gesture Mappings</a>
-                        <a href="{download_url}" class="btn green">Download Connection Software</a>
-                        <a href="/delete/{safe_name}" class="btn danger">Delete My Account</a>
-                        <a href="/logout" class="btn ghost">Log Out</a>
+                <div class="container">
+                    <div class="header">
+                        <div class="brand">
+                            <div class="brand-mark">
+                                <img src="{{ url_for('static', filename='images/PiVision_full_logo.png') }}" alt="Logo">
+                            </div>
+                            <h1>PiVision</h1>
+                        </div>
+                        <div style="align-self:center;">
+                            <a href="/logout" class="btn ghost">Log Out</a>
+                        </div>
                     </div>
+                    <div class="homepage_container_div">
+                        <div class="homepage_content_div center">
+                            <div style="max-width: 420px;">
+                                <h2>Welcome, {safe_name}</h2>
+                                <p class="lead">Choose an action</p>
+
+                                <div style="margin-top:12px; display:flex; flex-direction:column; gap:10px; align-items:center;">
+                                    <a href="/mappings/{safe_name}" class="btn">Edit Gesture Mappings</a>
+                                    <a href="{download_url}" class="btn green">Download Connection Software</a>
+                                    <a href="/delete/{safe_name}" class="btn danger">Delete My Account</a>
+                                    <a href="/logout" class="btn ghost">Log Out</a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="homepage_content_div gesture-display">
+                            <h1 id="g">Loading...</h1>
+                            <p>Confidence: <strong id="c">--%</strong></p>
+                            <a href="/video" class="btn ghost">View Live Stream ▶</a>
+                        </div>
                     </div>
                 </div>
-
-                <div class="homepage_content_div gesture-display">
-                    <h1 id="g">Loading...</h1>
-                    <p>Confidence: <strong id="c">--%</strong></p>
-                    <a href="/video" class="btn ghost">View Live Stream ▶</a>
-                </div>
-                </div>
-            </div>
             </body>
             </html>
             """
