@@ -222,31 +222,25 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         )
 
     previousGesture = "none"
-    # A lock to prevent race conditions from multiple rapid requests
-    password_status_lock = threading.Lock()
 
     @bp.route("/password/status", methods=["GET"])
     def password_status():
         """Returns live progress of received gestures."""
         nonlocal previousGesture
 
-        print(previousGesture)
+        gesture = get_password_gesture()
 
-        with password_status_lock:
-            gesture = get_password_gesture()
+        # Only update if new gesture received
+        if gesture == "stop":
+            GESTURE_PROGRESS["done"] = True
+        elif gesture == "stop_inverted" and gesture != previousGesture:
+            if GESTURE_PROGRESS["gestures"]:
+                GESTURE_PROGRESS["gestures"].pop()
+        elif (gesture and gesture not in (False, "False", "none") and gesture != previousGesture):
+            GESTURE_PROGRESS["gestures"].append(gesture)
 
-            # Only update if new gesture received
-            if gesture == "stop":
-                GESTURE_PROGRESS["done"] = True
-            elif gesture == "stop_inverted" and gesture != previousGesture:
-                if GESTURE_PROGRESS["gestures"]:
-                    GESTURE_PROGRESS["gestures"].pop()
-            elif (gesture and gesture not in (False, "False", "none") and gesture != previousGesture):
-                GESTURE_PROGRESS["gestures"].append(gesture)
-
-            previousGesture = gesture
-            print("new previous gesture: ", previousGesture)
-            return jsonify(GESTURE_PROGRESS)
+        previousGesture = gesture
+        return jsonify(GESTURE_PROGRESS)
 
     @bp.route("/password/cancel", methods=["POST"])
     def password_cancel():
