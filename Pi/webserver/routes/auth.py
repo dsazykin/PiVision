@@ -230,6 +230,8 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         """Returns live progress of received gestures."""
         nonlocal previousGesture
 
+        print(previousGesture)
+
         with password_status_lock:
             gesture = get_password_gesture()
 
@@ -243,6 +245,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                 GESTURE_PROGRESS["gestures"].append(gesture)
 
             previousGesture = gesture
+            print("new previous gesture: ", previousGesture)
             return jsonify(GESTURE_PROGRESS)
 
     @bp.route("/password/cancel", methods=["POST"])
