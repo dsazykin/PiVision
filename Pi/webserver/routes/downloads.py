@@ -11,10 +11,8 @@ from Pi.webserver.config.paths import CONNECTION_SOFTWARE_PATH
 
 def create_blueprint(session_manager: SessionManager) -> Blueprint:
     bp = Blueprint("downloads", __name__)
-    require_login = session_manager.require_login
 
     @bp.route("/download-software")
-    @require_login
     def download_page():
         exists = os.path.exists(CONNECTION_SOFTWARE_PATH)
         status_message = (
@@ -36,12 +34,11 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             {download_button}
             <br><br>
             <a href='
-{url_for('main.main_page', username=request.session['user_name'])}'><button>Back to 
-Home</button></a>
+            {url_for('main.index')}'><button>Back to 
+            Home</button></a>
         """
 
     @bp.route("/download-software/file")
-    @require_login
     def download_file():
         if not os.path.exists(CONNECTION_SOFTWARE_PATH):
             abort(404)
