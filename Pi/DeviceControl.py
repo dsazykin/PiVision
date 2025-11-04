@@ -17,36 +17,64 @@ sendPassword = False
 possible_ips = ["192.168.137.1", "192.168.5.2", "192.168.178.16"]
 PORT = 9000
 
+sock_lock = threading.Lock()
+connected = False
+sock = None
+
 def connect_to_server(possible_ips, port):
+    global connected
     while True:
         for ip in possible_ips:
             try:
                 print(f"Trying {ip}...")
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.settimeout(1)
+                s.settimeout(3)
                 s.connect((ip, port))
                 print(f"✅ Connected to {ip}:{port}")
+                connected = True
                 return s
             except Exception as e:
                 print(f"Failed to connect to {ip}: {e}")
-                time.sleep(1)
+                connected = False
+                time.sleep(2)
 
-# Connect before starting gesture recognition
-sock = connect_to_server(possible_ips, PORT)
+def connection_monitor():
+    global sock, connected
+    while True:
+        if not connected:
+            print("🔄 Attempting reconnection...")
+            try:
+                new_sock = connect_to_server(possible_ips, PORT)
+                with sock_lock:
+                    sock = new_sock
+                print("✅ Reconnected successfully!")
+            except Exception as e:
+                print(f"Reconnection failed: {e}")
+            time.sleep(2)
+        else:
+            time.sleep(1)
 
-def send_gesture(label):    
+# Start monitor thread to connect to the laptop
+threading.Thread(target=connection_monitor, daemon=True).start()
+
+def send_gesture(label):
+    global sock, connected
     try:
-        sock.sendall((label + "\n").encode())
-        print("Sent: " + label)
+        with sock_lock:
+            if sock is None:
+                raise ConnectionError("No socket.")
+            sock.sendall((label + "\n").encode())
+        print("Sent:", label)
     except Exception as e:
-        print("Send failed, reconnecting:", e)
-        sock.close()
-        time.sleep(1)
-        # Try to reconnect and resend
-        new_sock = connect_to_server(possible_ips, PORT)
-        new_sock.sendall((label + "\n").encode())
-        return new_sock
-    return sock
+        print("⚠️ Send failed:", e)
+        connected = False
+        with sock_lock:
+            if sock:
+                try:
+                    sock.close()
+                except:
+                    pass
+                sock = None
 
 # --------------- MODEL SETUP ----------------
 model_path = os.path.join(PROJECT_ROOT, "Models", "gesture_model_v4_handcrop.onnx")
@@ -239,7 +267,7 @@ try:
 
         if isLoggedIn:
             try:
-                while isLoggedIn:
+                while isLoggedIn and connected:
                     data = {"gesture": "none", "confidence": 0.0} # Initialise the default json
 
                     ret, frame = cap.read()
@@ -313,6 +341,11 @@ try:
                     isLoggedIn = check_loggedin() # Check if the user is still logged in
 
                     time.sleep(0.05)
+
+                    if not connected:
+                        print("❌ Lost connection — stopping recognition until reconnected.")
+                        break
+
             finally:
                 empty_frame = np.zeros((480, 640, 3), dtype=np.uint8)
                 cv2.imwrite(FRAME_PATH, empty_frame)  # Clear the frame
