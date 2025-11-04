@@ -255,91 +255,212 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             entering_password(True)
 
             # Serve the live-updating HTML
-            return f"""
-            <html>
-            <head>
-                <title>Gesture Login</title>
-                <style>
-                    body {{
-                        font-family: Arial, sans-serif;
-                        text-align: center;
-                        padding-top: 40px;
-                    }}
-                    .blocks {{
-                        display: inline-block;
-                        font-size: 2em;
-                        letter-spacing: 5px;
-                    }}
-                    button {{
-                        margin-top: 20px;
-                        padding: 10px 20px;
-                        font-size: 1em;
-                        cursor: pointer;
-                    }}
-                </style>
-            </head>
-            <body>
-                <h1>Enter password with gestures for {h.escape(username)}</h1>
-                <div class="blocks" id="passwordDisplay">Waiting for gestures...</div><br>
-                <img src="/stream" width="400" height="380"><br>
-                <button id="showPasswordBtn">Show Password</button>
-                <p><a href="/login">Go back and change username</a></p>
+            return f"""<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Gesture Login</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    /* Two-column layout: left = main, right = help card */
+    .page-grid {{
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: 28px;
+      align-items: start;
+      max-width: 1100px;
+      margin: 24px auto;
+      padding: 0 16px;
+      box-sizing: border-box;
+    }}
 
-                <script>
-                    let showPassword = false;
-                    let isSubmitting = false;
-                    const username = "{h.escape(username)}";
+    .left-panel {{
+      /* left column uses the main content styles */
+    }}
 
-                    document.getElementById("showPasswordBtn").addEventListener("click", () => {{
-                        showPassword = !showPassword;
-                        document.getElementById("showPasswordBtn").innerText =
-                            showPassword ? "Hide Password" : "Show Password";
-                    }});
+    .right-panel {{
+      position: sticky;
+      top: 24px;
+      align-self: start;
+    }}
 
-                    function updateProgress() {{
-                        fetch('/password/status')
-                            .then(res => res.json())
-                            .then(data => {{
-                                const gestures = data.gestures || [];
-                                const display = showPassword
-                                    ? gestures.join(" ")
-                                    : "● ".repeat(gestures.length);
-                                document.getElementById("passwordDisplay").innerText =
-                                    display || "Waiting for gestures...";
+    .blocks {{
+      display: inline-block;
+      font-size: 2em;
+      letter-spacing: 5px;
+      min-height: 2.2em;
+    }}
 
-                                if (data.done) {{
-                                    isSubmitting = true;
-                                    const formData = new FormData();
-                                    formData.append("username", username);
-                                    formData.append("password", gestures.join(""));
+    .stream-container {{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:12px;
+      margin-top:12px;
+    }}
 
-                                    fetch('/login/password', {{
-                                        method: 'POST',
-                                        body: formData
-                                    }})
-                                    .then(resp => resp.text())
-                                    .then(html => {{
-                                        document.open();
-                                        document.write(html);
-                                        document.close();
-                                    }})
-                                    .catch(err => console.error("Submit error:", err));
-                                }}
-                            }})
-                            .catch(err => console.error(err));
-                    }}
+    #showPasswordBtn {{
+      margin-top: 12px;
+      padding: 10px 20px;
+      font-size: 1rem;
+      cursor: pointer;
+    }}
 
-                    setInterval(updateProgress, 300);
+    /* Tooltip preview styling (if not already in main CSS) */
+    .tooltip {{
+      position: relative;
+      display: inline-block;
+      cursor: pointer;
+      color: #666;
+      font-size: 0.9em;
+      margin-left: 6px;
+    }}
 
-                    window.addEventListener('beforeunload', () => {{
-                        if (!isSubmitting) {{
-                            navigator.sendBeacon('/password/cancel');
-                        }}
-                    }});
-                </script>
-            </body>
-            </html>
-            """
+    .tooltip .preview {{
+      visibility: hidden;
+      opacity: 0;
+      position: absolute;
+      width: 160px;
+      border-radius: 8px;
+      top: -10px;
+      left: 110%;
+      transform: translateY(-40%);
+      transition: opacity 0.2s ease, transform 0.15s ease;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+      border: 1px solid #e5e7eb;
+      background-color: #fff;
+      z-index: 20;
+    }}
+
+    .tooltip:hover .preview {{
+      visibility: visible;
+      opacity: 1;
+      transform: translateY(-45%);
+    }}
+
+    @media (max-width: 920px) {{
+      .page-grid {{
+        grid-template-columns: 1fr;
+      }}
+      .right-panel {{
+        position: static;
+        margin-top: 18px;
+      }}
+      .blocks {{
+        font-size: 1.6rem;
+        letter-spacing: 4px;
+      }}
+      img.stream {{
+        width: 100%;
+        height: auto;
+        max-width: 640px;
+      }}
+    }}
+  </style>
+</head>
+<body>
+  <div class="page-grid">
+
+    <!-- LEFT: main content -->
+    <div class="left-panel">
+      <h1>Enter password with gestures for {h.escape(username)}</h1>
+
+      <!-- Gesture password display -->
+      <div class="blocks" id="passwordDisplay">Waiting for gestures...</div>
+
+      <!-- Live stream and controls -->
+      <div class="stream-container">
+        <img class="stream" src="/stream" width="500" height="375" alt="Live camera feed"><br>
+        <button id="showPasswordBtn">Show Password</button>
+        <p><a href="/login">Go back and change username</a></p>
+      </div>
+    </div>
+
+    <!-- RIGHT: gesture help card -->
+    <div class="right-panel">
+      <div class="gesture-help" role="region" aria-label="Gesture controls help">
+        <h3>Gesture controls</h3>
+        <div class="help-list" style="display:flex; gap:12px; flex-wrap:wrap;">
+          <div class="help-item">
+            <span class="chip">stop_inverted</span>
+            <span>— Backspace</span>
+            <span class="tooltip" aria-hidden="true">
+              &#9432;
+              <img src="/static/images/gestures/stop_inverted.jpg" class="preview" alt="stop_inverted preview">
+            </span>
+          </div>
+
+          <div class="help-item">
+            <span class="chip">stop</span>
+            <span>— Submit</span>
+            <span class="tooltip" aria-hidden="true">
+              &#9432;
+              <img src="/static/images/gestures/stop.jpg" class="preview" alt="stop preview">
+            </span>
+          </div>
+        </div>
+        <div class="muted" style="margin-top:8px;">Hover over the info icons to see what each gesture looks like.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    let showPassword = false;
+    let isSubmitting = false;
+    const username = "{h.escape(username)}";
+
+    document.getElementById("showPasswordBtn").addEventListener("click", function() {{
+      showPassword = !showPassword;
+      document.getElementById("showPasswordBtn").innerText =
+        showPassword ? "Hide Password" : "Show Password";
+    }});
+
+    function updateProgress() {{
+      fetch('/password/status')
+        .then(res => res.json())
+        .then(data => {{
+          const gestures = data.gestures || [];
+          const display = showPassword
+            ? gestures.join(" ")
+            : "● ".repeat(gestures.length);
+          document.getElementById("passwordDisplay").innerText =
+            display || "Waiting for gestures...";
+
+          if (data.done) {{
+            isSubmitting = true;
+            const formData = new FormData();
+            formData.append("username", username);
+            formData.append("password", gestures.join(""));
+
+            fetch('/login/password', {{
+              method: 'POST',
+              body: formData
+            }})
+            .then(resp => resp.text())
+            .then(html => {{
+              document.open();
+              document.write(html);
+              document.close();
+            }})
+            .catch(err => console.error("Submit error:", err));
+          }}
+        }})
+        .catch(err => console.error(err));
+    }}
+
+    setInterval(updateProgress, 300);
+
+    window.addEventListener('beforeunload', function() {{
+      if (!isSubmitting) {{
+        navigator.sendBeacon('/password/cancel');
+      }}
+    }});
+  </script>
+</body>
+</html>
+"""
 
         # ---------- POST: verify gesture password ----------
         username = request.form.get("username")
@@ -577,11 +698,11 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                         </div>
                 
                         <div class="help-item">
-                            <span class="chip">Stop</span>
+                            <span class="chip">stop</span>
                             <span>— Submit</span>
                             <span class="tooltip">
                                 &#9432;
-                                <img src="/static/images/gestures/Stop.jpg" class="preview" alt="Stop preview">
+                                <img src="/static/images/gestures/stop.jpg" class="preview" alt="stop preview">
                             </span>
                         </div>
                     </div>
