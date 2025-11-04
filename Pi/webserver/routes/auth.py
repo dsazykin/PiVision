@@ -392,11 +392,11 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
           </div>
 
           <div class="help-item">
-            <span class="chip">Stop</span>
+            <span class="chip">stop</span>
             <span>— Submit</span>
             <span class="tooltip" aria-hidden="true">
               &#9432;
-              <img src="/static/images/gestures/Stop.jpg" class="preview" alt="Stop preview">
+              <img src="/static/images/gestures/stop.jpg" class="preview" alt="stop preview">
             </span>
           </div>
         </div>
@@ -698,11 +698,11 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                         </div>
                 
                         <div class="help-item">
-                            <span class="chip">Stop</span>
+                            <span class="chip">stop</span>
                             <span>— Submit</span>
                             <span class="tooltip">
                                 &#9432;
-                                <img src="/static/images/gestures/Stop.jpg" class="preview" alt="Stop preview">
+                                <img src="/static/images/gestures/stop.jpg" class="preview" alt="stop preview">
                             </span>
                         </div>
                     </div>
