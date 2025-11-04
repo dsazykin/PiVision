@@ -39,7 +39,16 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         mappings_data = Database.get_user_mappings(username)
         rows = "".join(
             f"<tr><form method='POST'>"
-            f"<td><strong>{gesture}</strong></td>"
+            f"""
+            <td style='position: relative;'>
+                <strong>{gesture}</strong>
+                <span class='tooltip'>
+                    &#9432;
+                    <img src='/static/images/gestures/{gesture}.jpg' class='preview' alt=
+                    '{gesture} preview'>
+                </span>
+            </td>
+            """
             f"<td><input type='text' id='input_{gesture}' name='action' value='{action}' required readonly>"
             f"<button type='button' onclick=\"startListening('{gesture}')\">Edit</button></td>"
             f"<td><select name='duration'>"
@@ -80,6 +89,33 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             input[type='submit']:hover, button:hover {{
                 background-color: #45a049;
             }}
+            .tooltip {{
+                display: inline-block;
+                position: relative;
+                cursor: pointer;
+                margin-left: 6px;
+                color: #0077cc;
+                font-weight: bold;
+            }}
+            .tooltip .preview {{
+                visibility: hidden;
+                opacity: 0;
+                width: 120px;
+                border-radius: 8px;
+                border: 1px solid #ccc;
+                position: absolute;
+                top: 25px;
+                left: 0;
+                z-index: 10;
+                transition: opacity 0.2s;
+                background: white;
+                box-shadow: 0 0 6px rgba(0, 0, 0, 0.2);
+            }}
+            .tooltip:hover .preview {{
+                visibility: visible;
+                opacity: 1;
+            }}
+
         </style>
         <script>
             let listening = false;
