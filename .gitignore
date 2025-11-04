@@ -9,3 +9,4 @@ Pi/__pycache__
 WebServer/__pycache__
 /WebServerStream
 .env
+Pi/webserver/config/__pycache__
