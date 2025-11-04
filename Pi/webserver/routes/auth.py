@@ -383,7 +383,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         gesture = get_password_gesture()
 
         # Only update if new gesture received
-        if gesture == "stop":
+        if gesture == "stop" and gesture != previousGesture:
             GESTURE_PROGRESS["done"] = True
         elif gesture == "stop_inverted" and gesture != previousGesture:
             if GESTURE_PROGRESS["gestures"]:
