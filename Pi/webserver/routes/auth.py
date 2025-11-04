@@ -208,37 +208,37 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         )
 
         return f"""<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Login — Select User</title>
-  <link rel="stylesheet" href="/static/css/style.css">
-</head>
-<body>
-  <div class="container">
-    <div class="homepage_content_div" style="max-width:620px;margin:24px auto;">
-      <h2>Select Username</h2>
-      <p class="lead">Choose your username from the list below.</p>
-      <form method="POST" style="margin-top:12px; display:flex; flex-direction:column; gap:10px; align-items:flex-start;">
-        <label for="username_select">Username:</label>
-        <select id="username_select" name="username_select" required style="width:260px;padding:10px;border-radius:8px;">
-            {user_options}
-        </select>
-
-        <div style="margin-top:10px;">
-          <button type="submit" class="btn">Next</button>
-          <a href="/signup" class="btn ghost" style="margin-left:10px;">Sign up</a>
-        </div>
-      </form>
-      <div style="margin-top:14px;">
-        <a href="/signup" class="btn ghost">Don't have an account? Sign up here</a>
-      </div>
-    </div>
-  </div>
-</body>
-</html>
-"""
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width,initial-scale=1">
+              <title>Login — Select User</title>
+              <link rel="stylesheet" href="/static/css/style.css">
+            </head>
+            <body>
+              <div class="container">
+                <div class="homepage_content_div" style="max-width:620px;margin:24px auto;">
+                  <h2>Select Username</h2>
+                  <p class="lead">Choose your username from the list below.</p>
+                  <form method="POST" style="margin-top:12px; display:flex; flex-direction:column; gap:10px; align-items:flex-start;">
+                    <label for="username_select">Username:</label>
+                    <select id="username_select" name="username_select" required style="width:260px;padding:10px;border-radius:8px;">
+                        {user_options}
+                    </select>
+            
+                    <div style="margin-top:10px;">
+                      <button type="submit" class="btn">Next</button>
+                      <a href="/signup" class="btn ghost" style="margin-left:10px;">Sign up</a>
+                    </div>
+                  </form>
+                  <div style="margin-top:14px;">
+                    <a href="/signup" class="btn ghost">Don't have an account? Sign up here</a>
+                  </div>
+                </div>
+              </div>
+            </body>
+            </html>
+        """
 
     @bp.route("/login/password", methods=["GET", "POST"])
     def login_step2():
@@ -591,183 +591,182 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             entering_password(True)
 
             return f"""<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Gesture Login</title>
-  <link rel="stylesheet" href="/static/css/style.css">
-  <style>
-    /* Two-column layout: left = main, right = help card */
-    .page-grid {{
-      display: grid;
-      grid-template-columns: 1fr 360px;
-      gap: 28px;
-      align-items: start;
-      max-width: 1100px;
-      margin: 24px auto;
-      padding: 0 16px;
-      box-sizing: border-box;
-    }}
-
-    .left-panel {{
-      /* left column uses the main content styles */
-    }}
-
-    .right-panel {{
-      /* keep help card visually anchored on larger screens */
-      position: sticky;
-      top: 24px;
-      align-self: start;
-    }}
-
-    /* reuse blocks styling */
-    .blocks {{
-      display: inline-block;
-      font-size: 2em;
-      letter-spacing: 5px;
-      min-height: 2.2em;
-    }}
-
-    .stream-container {{
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      gap:12px;
-      margin-top:12px;
-    }}
-
-    #showPasswordBtn {{
-      margin-top: 12px;
-      padding: 10px 20px;
-      font-size: 1rem;
-      cursor: pointer;
-    }}
-
-    /* small responsive tweaks */
-    @media (max-width: 920px) {{
-      .page-grid {{
-        grid-template-columns: 1fr;
-      }}
-      .right-panel {{
-        position: static;
-        margin-top: 18px;
-      }}
-      .blocks {{
-        font-size: 1.6rem;
-        letter-spacing: 4px;
-      }}
-      img.stream {{
-        width: 100%;
-        height: auto;
-        max-width: 640px;
-      }}
-    }}
-  </style>
-</head>
-<body>
-  <div class="page-grid">
-
-    <!-- LEFT: main content -->
-    <div class="left-panel">
-      <h1>Enter password with gestures for {h.escape(username)}</h1>
-
-      <!-- Gesture password display -->
-      <div class="blocks" id="passwordDisplay">Waiting for gestures...</div>
-
-      <!-- Live stream and controls -->
-      <div class="stream-container">
-        <img class="stream" src="/stream" width="500" height="375" alt="Live camera feed"><br>
-        <button id="showPasswordBtn">Show Password</button>
-        <p><a href="/login">Go back and change username</a></p>
-      </div>
-    </div>
-
-    <!-- RIGHT: gesture help card -->
-    <div class="right-panel">
-      <div class="gesture-help" role="region" aria-label="Gesture controls help">
-    <h3>Gesture controls</h3>
-    <div class="help-list" style="display:flex; gap:12px; flex-wrap:wrap;">
-        <div class="help-item">
-            <span class="chip">stop_inverted</span>
-            <span>— Backspace</span>
-            <span class="tooltip">
-                &#9432;
-                <img src="/static/images/gestures/stop_inverted.jpg" class="preview" alt="stop_inverted preview">
-            </span>
-        </div>
-
-        <div class="help-item">
-            <span class="chip">Stop</span>
-            <span>— Submit</span>
-            <span class="tooltip">
-                &#9432;
-                <img src="/static/images/gestures/Stop.jpg" class="preview" alt="Stop preview">
-            </span>
-        </div>
-    </div>
-    <div class="muted" style="margin-top:8px;">Hover over the info icons to see what each gesture looks like.</div>
-</div>
-
-
-  </div>
-
-  <script>
-    let showPassword = false;
-    let isSubmitting = false;
-    const username = "{h.escape(username)}";
-
-    document.getElementById("showPasswordBtn").addEventListener("click", function() {{
-      showPassword = !showPassword;
-      document.getElementById("showPasswordBtn").innerText =
-        showPassword ? "Hide Password" : "Show Password";
-    }});
-
-    function updateProgress() {{
-      fetch('/password/status')
-        .then(res => res.json())
-        .then(data => {{
-          const gestures = data.gestures || [];
-          const display = showPassword
-            ? gestures.join(" ")
-            : "● ".repeat(gestures.length);
-          document.getElementById("passwordDisplay").innerText =
-            display || "Waiting for gestures...";
-
-          if (data.done) {{
-            isSubmitting = true;
-            const formData = new FormData();
-            formData.append("username", username);
-            formData.append("password", gestures.join(""));
-
-            fetch('/signup/password', {{
-              method: 'POST',
-              body: formData
-            }})
-            .then(resp => resp.text())
-            .then(html => {{
-              document.open();
-              document.write(html);
-              document.close();
-            }})
-            .catch(err => console.error("Submit error:", err));
-          }}
-        }})
-        .catch(err => console.error(err));
-    }}
-
-    setInterval(updateProgress, 300);
-
-    window.addEventListener('beforeunload', function() {{
-      if (!isSubmitting) {{
-        navigator.sendBeacon('/password/cancel');
-      }}
-    }});
-  </script>
-</body>
-</html>
-"""
-
+                <html>
+                <head>
+                  <meta charset="utf-8">
+                  <meta name="viewport" content="width=device-width,initial-scale=1">
+                  <title>Gesture Login</title>
+                  <link rel="stylesheet" href="/static/css/style.css">
+                  <style>
+                    /* Two-column layout: left = main, right = help card */
+                    .page-grid {{
+                      display: grid;
+                      grid-template-columns: 1fr 360px;
+                      gap: 28px;
+                      align-items: start;
+                      max-width: 1100px;
+                      margin: 24px auto;
+                      padding: 0 16px;
+                      box-sizing: border-box;
+                    }}
+                
+                    .left-panel {{
+                      /* left column uses the main content styles */
+                    }}
+                
+                    .right-panel {{
+                      /* keep help card visually anchored on larger screens */
+                      position: sticky;
+                      top: 24px;
+                      align-self: start;
+                    }}
+                
+                    /* reuse blocks styling */
+                    .blocks {{
+                      display: inline-block;
+                      font-size: 2em;
+                      letter-spacing: 5px;
+                      min-height: 2.2em;
+                    }}
+                
+                    .stream-container {{
+                      display:flex;
+                      flex-direction:column;
+                      align-items:center;
+                      gap:12px;
+                      margin-top:12px;
+                    }}
+                
+                    #showPasswordBtn {{
+                      margin-top: 12px;
+                      padding: 10px 20px;
+                      font-size: 1rem;
+                      cursor: pointer;
+                    }}
+                
+                    /* small responsive tweaks */
+                    @media (max-width: 920px) {{
+                      .page-grid {{
+                        grid-template-columns: 1fr;
+                      }}
+                      .right-panel {{
+                        position: static;
+                        margin-top: 18px;
+                      }}
+                      .blocks {{
+                        font-size: 1.6rem;
+                        letter-spacing: 4px;
+                      }}
+                      img.stream {{
+                        width: 100%;
+                        height: auto;
+                        max-width: 640px;
+                      }}
+                    }}
+                  </style>
+                </head>
+                <body>
+                  <div class="page-grid">
+                
+                    <!-- LEFT: main content -->
+                    <div class="left-panel">
+                      <h1>Enter password with gestures for {h.escape(username)}</h1>
+                
+                      <!-- Gesture password display -->
+                      <div class="blocks" id="passwordDisplay">Waiting for gestures...</div>
+                
+                      <!-- Live stream and controls -->
+                      <div class="stream-container">
+                        <img class="stream" src="/stream" width="500" height="375" alt="Live camera feed"><br>
+                        <button id="showPasswordBtn">Show Password</button>
+                        <p><a href="/login">Go back and change username</a></p>
+                      </div>
+                    </div>
+                
+                    <!-- RIGHT: gesture help card -->
+                    <div class="right-panel">
+                      <div class="gesture-help" role="region" aria-label="Gesture controls help">
+                    <h3>Gesture controls</h3>
+                    <div class="help-list" style="display:flex; gap:12px; flex-wrap:wrap;">
+                        <div class="help-item">
+                            <span class="chip">stop_inverted</span>
+                            <span>— Backspace</span>
+                            <span class="tooltip">
+                                &#9432;
+                                <img src="/static/images/gestures/stop_inverted.jpg" class="preview" alt="stop_inverted preview">
+                            </span>
+                        </div>
+                
+                        <div class="help-item">
+                            <span class="chip">Stop</span>
+                            <span>— Submit</span>
+                            <span class="tooltip">
+                                &#9432;
+                                <img src="/static/images/gestures/Stop.jpg" class="preview" alt="Stop preview">
+                            </span>
+                        </div>
+                    </div>
+                    <div class="muted" style="margin-top:8px;">Hover over the info icons to see what each gesture looks like.</div>
+                </div>
+                
+                
+                  </div>
+                
+                  <script>
+                    let showPassword = false;
+                    let isSubmitting = false;
+                    const username = "{h.escape(username)}";
+                
+                    document.getElementById("showPasswordBtn").addEventListener("click", function() {{
+                      showPassword = !showPassword;
+                      document.getElementById("showPasswordBtn").innerText =
+                        showPassword ? "Hide Password" : "Show Password";
+                    }});
+                
+                    function updateProgress() {{
+                      fetch('/password/status')
+                        .then(res => res.json())
+                        .then(data => {{
+                          const gestures = data.gestures || [];
+                          const display = showPassword
+                            ? gestures.join(" ")
+                            : "● ".repeat(gestures.length);
+                          document.getElementById("passwordDisplay").innerText =
+                            display || "Waiting for gestures...";
+                
+                          if (data.done) {{
+                            isSubmitting = true;
+                            const formData = new FormData();
+                            formData.append("username", username);
+                            formData.append("password", gestures.join(""));
+                
+                            fetch('/signup/password', {{
+                              method: 'POST',
+                              body: formData
+                            }})
+                            .then(resp => resp.text())
+                            .then(html => {{
+                              document.open();
+                              document.write(html);
+                              document.close();
+                            }})
+                            .catch(err => console.error("Submit error:", err));
+                          }}
+                        }})
+                        .catch(err => console.error(err));
+                    }}
+                
+                    setInterval(updateProgress, 300);
+                
+                    window.addEventListener('beforeunload', function() {{
+                      if (!isSubmitting) {{
+                        navigator.sendBeacon('/password/cancel');
+                      }}
+                    }});
+                  </script>
+                </body>
+                </html>
+            """
 
         username = request.form.get("username")
         password = request.form.get("password", "")
