@@ -619,7 +619,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             formData.append("username", username);
             formData.append("password", gestures.join(""));
 
-            fetch('/login/password', {{
+            fetch('/signup/password', {{
               method: 'POST',
               body: formData
             }})
