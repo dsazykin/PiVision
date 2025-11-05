@@ -417,6 +417,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         showPassword ? "Hide Password" : "Show Password";
     }});
 
+    let intervalId;
     function updateProgress() {{
       fetch('/password/status')
         .then(res => res.json())
@@ -429,7 +430,9 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             display || "Waiting for gestures...";
 
           if (data.done) {{
+            if (isSubmitting) return;
             isSubmitting = true;
+            clearInterval(intervalId);
             const formData = new FormData();
             formData.append("username", username);
             formData.append("password", gestures.join(""));
@@ -450,7 +453,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
         .catch(err => console.error(err));
     }}
 
-    setInterval(updateProgress, 300);
+    intervalId = setInterval(updateProgress, 300);
 
     window.addEventListener('beforeunload', function() {{
       if (!isSubmitting) {{
@@ -723,6 +726,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                         showPassword ? "Hide Password" : "Show Password";
                     }});
                 
+                    let intervalId;
                     function updateProgress() {{
                       fetch('/password/status')
                         .then(res => res.json())
@@ -735,7 +739,9 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                             display || "Waiting for gestures...";
                 
                           if (data.done) {{
+                            if (isSubmitting) return;
                             isSubmitting = true;
+                            clearInterval(intervalId);
                             const formData = new FormData();
                             formData.append("username", username);
                             formData.append("password", gestures.join(""));
@@ -756,7 +762,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                         .catch(err => console.error(err));
                     }}
                 
-                    setInterval(updateProgress, 300);
+                    intervalId = setInterval(updateProgress, 300);
                 
                     window.addEventListener('beforeunload', function() {{
                       if (!isSubmitting) {{
