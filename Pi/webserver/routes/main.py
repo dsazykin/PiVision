@@ -4,6 +4,7 @@ from __future__ import annotations
 import html as h
 
 from flask import Blueprint, Response, redirect, request, url_for
+from Pi.SaveJson import update_loggedin
 
 from ..middleware import SessionManager, get_request_session
 from ... import Database
@@ -264,12 +265,13 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
                 <div class="container">
                 <div class="homepage_content_div center" style="max-width:640px;margin:20px auto;">
                     <h2>Deletion Failed</h2>
-                    <p style="color:var(--danger)">User '{h.escape(username)}' not found.</p>
+                    <p style="color:var(--danger)">User '{safe}' not found.</p>
                     <a href="/" class="btn ghost">Return Home</a>
                 </div>
                 </div>
                 </body></html>"""
 
+        update_loggedin(False)
         return f"""<!doctype html><html><head>
             <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
             <link rel="stylesheet" href="/static/css/style.css">
@@ -277,7 +279,7 @@ def create_blueprint(session_manager: SessionManager) -> Blueprint:
             <div class="container">
             <div class="homepage_content_div center" style="max-width:640px;margin:20px auto;">
                 <h2>Account Deleted</h2>
-                <p>User '{h.escape(username)}' has been removed.</p>
+                <p>User '{safe}' has been removed.</p>
                 <a href="/" class="btn">Return Home</a>
             </div>
             </div>
