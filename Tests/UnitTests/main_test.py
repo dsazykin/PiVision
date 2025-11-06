@@ -42,6 +42,10 @@ class TestSignup(unittest.TestCase):
         self.assertTrue(stored_pw.startswith(b"$2b$") or stored_pw.startswith(b"$2a$"),
                         "Stored password should be a bcrypt hash")
 
+        self.assertIsNotNone(db.get_user_mappings(username_signup))
+        db.update_gesture_mapping(username_signup, "stop", "w", "press")
+        self.assertTrue(db.reset_user_mappings(username_signup))
+
     def test_double_user(self):
         db.add_user(username_signup, password_signup)
         usertable_size = db.get_all_users()
@@ -58,8 +62,7 @@ class TestSignup(unittest.TestCase):
         self.assertEqual(usertable_size, newsize)
 
         # Test if password of the user is still the same of the original user.
-        db_pass = db.get_user_password(username_signup)
-        self.assertTrue(bcrypt.checkpw(password_signup.encode("utf-8"), db_pass))
+        self.assertTrue(db.verify_user(username_signup, password_signup))
 
     def test_has_session(self):
         """Verify that creating a session actually adds it to the sessions table."""
@@ -69,7 +72,12 @@ class TestSignup(unittest.TestCase):
 
         # Create a session for that user
         token = db.create_session(user["user_id"])
+        rawtoken = db.get_user_token()
         self.assertIsNotNone(token, "create_session() should return a session token")
+
+        self.assertTrue(db.verify_session(token, username_signup))
+        self.assertIsNotNone(db.get_session(token))
+        self.assertEqual(rawtoken, db.get_user_token())
 
         # Retrieve all sessions
         sessions = db.get_all_sessions()
@@ -82,6 +90,10 @@ class TestSignup(unittest.TestCase):
         # verify that token exists in the table
         tokens = [row["session_token"] for row in sessions]
         self.assertIn(token, tokens, "Returned token should match one in database")
+
+        db.cleanup_expired_sessions()
+        db.delete_session(token)
+        self.assertIsNone(db.get_session(token))
 
     def tearDown(self):
         """Clean up database and test data after each test."""
@@ -99,6 +111,8 @@ class TestSQLInjection(unittest.TestCase):
     def setUp(self):
         # full reset
         db.initialize_database()
+
+        db.reset_database()
 
         # remove users and injections if in database.
         existing_user = db.get_user(username_injection)

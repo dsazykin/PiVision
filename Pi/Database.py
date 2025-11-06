@@ -137,9 +137,9 @@ def initialize_database():
 def delete_database():
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("""
-                       DROP TABLE users, sessions, gesture_mappings
-                       """)
+        cursor.execute("DROP TABLE IF EXISTS users")
+        cursor.execute("DROP TABLE IF EXISTS sessions")
+        cursor.execute("DROP TABLE IF EXISTS gesture_mappings")
         conn.commit()
 
 
@@ -393,15 +393,6 @@ def cleanup_expired_sessions():
         conn.commit()
 
 
-# NEW: fetch user by id
-def get_user_by_id(user_id):
-    with get_connection() as conn:
-        conn.row_factory = sqlite3.Row
-        c = conn.cursor()
-        c.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
-        return c.fetchone()
-
-
 # NEW: mappings by user_id
 def get_user_mappings_by_user_id(user_id):
     with get_connection() as conn:
@@ -427,18 +418,6 @@ def update_gesture_mapping_by_user_id(user_id, gesture_name, new_action, new_dur
                     AND user_id = ?
                   """, (new_action, new_duration, gesture_name, user_id))
         conn.commit()
-
-
-# NEW: delete user by id (and their mappings)
-def delete_user_by_id(user_id):
-    with get_connection() as conn:
-        c = conn.cursor()
-        c.execute("DELETE FROM gesture_mappings WHERE user_id = ?", (user_id,))
-        c.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
-        deleted = c.rowcount
-        conn.commit()
-        return deleted
-
 
 def get_all_users() -> list[str]:
     try:
