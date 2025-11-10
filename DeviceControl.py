@@ -290,18 +290,16 @@ def process_frame(frame: np.ndarray, hand_landmarks) -> tuple[str, list[tuple[st
     label = classes[pred]
     return label, top3
 
-def add_text(frame: np.ndarray, top3: list[tuple[str, float]], hand_label: str, idx: int):
+def add_text(frame: np.ndarray, gesture: dict, hand_label: str, idx: int):
     """Add text to the frame to show the 3 most likely gestures."""
-    y0, dy = 40, 30
+    yd, yh = 50, 30
     x_offset = 10 + (idx * 250)
-    cv2.putText(frame, f"Hand: {hand_label.capitalize()}", (x_offset, y0 - dy),
+    cv2.putText(frame, f"Hand: {hand_label.capitalize()}", (x_offset, yh),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2, cv2.LINE_AA)
 
-    for rank, (cls, prob) in enumerate(top3):
-        text = f"{rank + 1}. {cls}: {prob * 100:.1f}%"
-        y = y0 + rank * dy
-        cv2.putText(frame, text, (x_offset, y),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
+    text = f"{gesture.get('gesture')}: {gesture.get('confidence') * 100:.1f}%"
+    cv2.putText(frame, text, (x_offset, yd),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
 
 # --------------- MAIN LOOP ----------------
 if __name__ == "__main__":
@@ -319,6 +317,7 @@ if __name__ == "__main__":
             if not ret:
                 break
 
+            frame = cv2.flip(frame, 1) # Mirror the frame
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             results = mp_hands.process(rgb)
 
@@ -368,7 +367,7 @@ if __name__ == "__main__":
                     mp_draw.draw_landmarks(frame, hand_landmarks,
                                            mp.solutions.hands.HAND_CONNECTIONS)
 
-                    add_text(frame, top3, hand, idx) # Add text to the frame to show the 3 most likely gestures
+                    add_text(frame, data, hand, idx) # Add text to the frame to show the 3 most likely gestures
 
             # No hand detected in frame
             for hand_label in ['left', 'right']:
