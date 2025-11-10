@@ -14,8 +14,6 @@ from tkinter.scrolledtext import ScrolledText
 import pyautogui
 
 from Pi.webserver.config.paths import (FRAME_PATH, MAPPINGS_PATH, PROJECT_ROOT)
-from Pi.SaveJson import update_current_gesture, update_password_gesture
-from Pi.ReadJson import check_loggedin, check_entering_password, get_new_mappings
 
 log_queue = queue.Queue()
 
@@ -206,86 +204,6 @@ def reset_active_holds():
                 log_event(f"Error releasing key '{key}': {exc}")
         active_key_holds[key] = False
 
-def start_gui():
-    root = tk.Tk()
-    root.title("Laptop Server Monitor")
-
-    status_var = tk.StringVar(value="Starting server...")
-
-    # === STATUS BAR ===
-    status_label = tk.Label(root, textvariable=status_var, font=("Segoe UI", 12, "bold"))
-    status_label.pack(padx=10, pady=(10, 5), anchor="w")
-
-    # === SETTINGS BUTTON ===
-    def open_settings():
-        settings_window = tk.Toplevel(root)
-        settings_window.title("Settings")
-
-        tk.Label(settings_window, text="Mouse move distance (pixels):").grid(row=0, column=0, sticky="w", padx=5, pady=5)
-        move_dist_var = tk.IntVar(value=MOVE_DISTANCE)
-        tk.Entry(settings_window, textvariable=move_dist_var, width=10).grid(row=0, column=1, padx=5, pady=5)
-
-        tk.Label(settings_window, text="Move interval (seconds):").grid(row=1, column=0, sticky="w", padx=5, pady=5)
-        move_interval_var = tk.DoubleVar(value=MOVE_INTERVAL)
-        tk.Entry(settings_window, textvariable=move_interval_var, width=10).grid(row=1, column=1, padx=5, pady=5)
-
-        tk.Label(settings_window, text="Scroll amount (pixels per step):").grid(row=2, column=0, sticky="w", padx=5, pady=5)
-        scroll_amount_var = tk.IntVar(value=SCROLL_AMOUNT)
-        tk.Entry(settings_window, textvariable=scroll_amount_var, width=10).grid(row=2, column=1, padx=5, pady=5)
-
-        def save_settings():
-            global MOVE_DISTANCE, MOVE_INTERVAL, SCROLL_AMOUNT
-            MOVE_DISTANCE = move_dist_var.get()
-            MOVE_INTERVAL = move_interval_var.get()
-            SCROLL_AMOUNT = scroll_amount_var.get()
-
-            # Save persistently
-            save_json({
-                "MOVE_DISTANCE": MOVE_DISTANCE,
-                "MOVE_INTERVAL": MOVE_INTERVAL,
-                "SCROLL_AMOUNT": SCROLL_AMOUNT
-            })
-
-            log_event(
-                f"Settings updated and saved: MOVE_DISTANCE={MOVE_DISTANCE}, MOVE_INTERVAL={MOVE_INTERVAL}, SCROLL_AMOUNT={SCROLL_AMOUNT}")
-            settings_window.destroy()
-
-        tk.Button(settings_window, text="Save", command=save_settings).grid(row=3, column=0, columnspan=2, pady=10)
-
-    tk.Button(root, text="⚙ Settings", command=open_settings).pack(padx=10, pady=(0, 10), anchor="e")
-
-    # === LOG WINDOW ===
-    log_frame = tk.Frame(root)
-    log_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
-
-    log_text = ScrolledText(log_frame, wrap=tk.WORD, height=20, state=tk.DISABLED)
-    log_text.pack(fill=tk.BOTH, expand=True)
-
-    # === QUEUE PROCESSING ===
-    def process_queue():
-        while True:
-            try:
-                message, status = log_queue.get_nowait()
-            except queue.Empty:
-                break
-
-            log_text.configure(state=tk.NORMAL)
-            log_text.insert(tk.END, message + "\n")
-            log_text.configure(state=tk.DISABLED)
-            log_text.see(tk.END)
-
-            if status:
-                status_var.set(status)
-
-        root.after(100, process_queue)
-
-    def on_close():
-        root.destroy()
-
-    root.protocol("WM_DELETE_WINDOW", on_close)
-    root.after(100, process_queue)
-    root.mainloop()
-
 # --------------- MODEL SETUP ----------------
 model_path = os.path.join(PROJECT_ROOT, "Models", "gesture_model_v4_handcrop.onnx")
 
@@ -329,12 +247,13 @@ mp_hands = mp.solutions.hands.Hands(max_num_hands=2,
     min_detection_confidence=0.75, min_tracking_confidence=0.75)
 mp_draw = mp.solutions.drawing_utils
 
-previous_gesture = ""   # The detected gesture in the previous frame
-minimum_hold = 3        # How many frames the gesture has to be held in order to be valid
-frame_count = 0         # How many frames the current gesture has been held
-hold_gesture = False    # If the detected gesture is being held
+# State tracking for each hand
+hand_states = {
+    'left': {'previous_gesture': "", 'frame_count': 0, 'hold_gesture': False, 'input_sent': False},
+    'right': {'previous_gesture': "", 'frame_count': 0, 'hold_gesture': False, 'input_sent': False}
+}
 
-input_sent = False      # Has this gesture input already been sent to the connected device
+minimum_hold = 3        # How many frames the gesture has to be held in order to be valid
 
 # --------------- GESTURE DETECTION METHODS ----------------
 def process_frame(frame: np.ndarray, hand_landmarks) -> tuple[str, list[tuple[str, float]]]:
@@ -371,13 +290,17 @@ def process_frame(frame: np.ndarray, hand_landmarks) -> tuple[str, list[tuple[st
     label = classes[pred]
     return label, top3
 
-def add_text(frame: np.ndarray, top3: list[tuple[str, float]]):
+def add_text(frame: np.ndarray, top3: list[tuple[str, float]], hand_label: str, idx: int):
     """Add text to the frame to show the 3 most likely gestures."""
     y0, dy = 40, 30
+    x_offset = 10 + (idx * 250)
+    cv2.putText(frame, f"Hand: {hand_label.capitalize()}", (x_offset, y0 - dy),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2, cv2.LINE_AA)
+
     for rank, (cls, prob) in enumerate(top3):
         text = f"{rank + 1}. {cls}: {prob * 100:.1f}%"
         y = y0 + rank * dy
-        cv2.putText(frame, text, (10, y),
+        cv2.putText(frame, text, (x_offset, y),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
 
 # --------------- MAIN LOOP ----------------
@@ -399,66 +322,74 @@ if __name__ == "__main__":
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             results = mp_hands.process(rgb)
 
+            detected_hands = set()
             if results.multi_hand_landmarks: # Is there a hand detected?
-                for hand_landmarks in results.multi_hand_landmarks:
+                for idx, hand_landmarks in enumerate(results.multi_hand_landmarks):
+                    hand = results.multi_handedness[idx].classification[0].label.lower()
+                    detected_hands.add(hand)
+                    state = hand_states[hand]
 
                     # Pass into the ML model to recognise gestures
                     label, top3 = process_frame(frame, hand_landmarks)
 
                     # If the detected gesture changed from the previous frame
-                    if label != previous_gesture:
+                    if label != state['previous_gesture']:
                         # Was the previous input sent, and was it a hold input?
-                        if input_sent and mappings.get(previous_gesture)[1] == "hold":
+                        if (state['input_sent'] and mappings.get(state['previous_gesture'])[1] ==
+                                "hold"):
                             # Send release command to device
-                            msg = "release" + " " + mappings.get(previous_gesture)[0]
+                            msg = "release" + " " + mappings.get(state['previous_gesture'])[0]
                             perform_action(msg)
 
                         # Reset variables
-                        hold_gesture = False
-                        input_sent = False
-                        previous_gesture = label
-                        frame_count = 0
+                        state['hold_gesture'] = False
+                        state['input_sent'] = False
+                        state['previous_gesture'] = label
+                        state['frame_count'] = 0
 
                     # Has the current gesture been held long enough?
-                    if frame_count == minimum_hold or hold_gesture:
-                        hold_gesture = True
-                        frame_count = 0
-                        print("Detected Gesture: " + label)
+                    if state['frame_count'] == minimum_hold or state['hold_gesture']:
+                        state['hold_gesture'] = True
+                        state['frame_count'] = 0
+                        print(hand + " Hand     " + "Detected Gesture: " + label)
                         data = {"gesture": label, "confidence": float(top3[0][1])}
 
                         # Has this input already been sent to the device?
-                        if not input_sent:
+                        if not state['input_sent']:
                             msg = mappings.get(label)[1] + " " + mappings.get(label)[0]
                             perform_action(msg)
 
-                        input_sent = True
+                        state['input_sent'] = True
 
                     # Gesture hasn't changed but is still held
-                    elif label == previous_gesture:
-                        frame_count += 1
+                    elif label == state['previous_gesture']:
+                        state['frame_count'] += 1
 
                     mp_draw.draw_landmarks(frame, hand_landmarks,
                                            mp.solutions.hands.HAND_CONNECTIONS)
 
-                    add_text(frame, top3) # Add text to the frame to show the 3 most likely gestures
-            # No hand detected in frame
-            else:
-                # Was there a hand in the previous frame?
-                if previous_gesture != "":
-                    # Was the previous input sent, and was it a hold input?
-                    if input_sent and mappings.get(previous_gesture)[1] == "hold":
-                        # Send release command to device
-                        msg = "release" + " " + mappings.get(previous_gesture)[0]
-                        perform_action(msg)
+                    add_text(frame, top3, hand, idx) # Add text to the frame to show the 3 most likely gestures
 
-                    # Reset variables
-                    hold_gesture = False
-                    input_sent = False
-                    frame_count = 0
-                    previous_gesture = ""
+            # No hand detected in frame
+            for hand_label in ['left', 'right']:
+                if hand_label not in detected_hands:
+                    state = hand_states[hand_label]
+                    # Was there a hand in the previous frame?
+                    if state['previous_gesture'] != "":
+                        # Was the previous input sent, and was it a hold input?
+                        if (state['input_sent'] and mappings.get(state['previous_gesture'])[1] ==
+                                "hold"):
+                            # Send release command to device
+                            msg = "release" + " " + mappings.get(state['previous_gesture'])[0]
+                            perform_action(msg)
+
+                        # Reset variables
+                        state['hold_gesture'] = False
+                        state['input_sent'] = False
+                        state['frame_count'] = 0
+                        state['previous_gesture'] = ""
 
             cv2.imwrite(FRAME_PATH, frame) # Store the frame so that the webserver can fetch it
-            update_current_gesture(data) # Store the detected gesture
 
             time.sleep(0.05)
 
@@ -473,4 +404,3 @@ if __name__ == "__main__":
         finally:
             empty_frame = np.zeros((480, 640, 3), dtype=np.uint8)
             cv2.imwrite(FRAME_PATH, empty_frame)  # Clear the frame
-            update_current_gesture({"gesture": "none", "confidence": 0.0}) # Clear last detected gesture
