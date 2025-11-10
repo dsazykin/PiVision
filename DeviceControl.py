@@ -325,8 +325,8 @@ mappings = {
 # --------------- MEDIAPIPE SETUP ----------------
 cap = cv2.VideoCapture(0)
 cap.set(cv2.CAP_PROP_FPS, 30)
-mp_hands = mp.solutions.hands.Hands(max_num_hands=1,
-    min_detection_confidence=0.5, min_tracking_confidence=0.5)
+mp_hands = mp.solutions.hands.Hands(max_num_hands=2,
+    min_detection_confidence=0.75, min_tracking_confidence=0.75)
 mp_draw = mp.solutions.drawing_utils
 
 previous_gesture = ""   # The detected gesture in the previous frame
