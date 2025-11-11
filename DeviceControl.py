@@ -7,13 +7,11 @@ import time
 import queue
 import os
 import json
-import tkinter as tk
 from pathlib import Path
-from tkinter.scrolledtext import ScrolledText
 
 import pyautogui
 
-from Pi.webserver.config.paths import (FRAME_PATH, MAPPINGS_PATH, PROJECT_ROOT)
+from Pi.webserver.config.paths import PROJECT_ROOT
 
 log_queue = queue.Queue()
 
@@ -58,11 +56,6 @@ def save_json(settings):
     except Exception as e:
         print(f"Error saving config: {e}")
 
-def log_event(message, status=None):
-    """Log a message to the console and queue it for the GUI."""
-    print(message)
-    log_queue.put((message, status))
-
 # Keep track of held states
 active_mouse_holds = {}
 active_key_holds = {}
@@ -71,19 +64,6 @@ active_key_holds = {}
 MOVE_DISTANCE = 20     # pixels per step
 MOVE_INTERVAL = 0.03   # seconds between steps
 SCROLL_AMOUNT = 100    # scroll step size
-
-def continuous_mouse_move(direction):
-    """Move the mouse continuously in a given direction while held."""
-    while active_mouse_holds.get(direction, False):
-        if direction == "mouse_left":
-            pyautogui.moveRel(-MOVE_DISTANCE, 0)
-        elif direction == "mouse_right":
-            pyautogui.moveRel(MOVE_DISTANCE, 0)
-        elif direction == "mouse_up":
-            pyautogui.moveRel(0, -MOVE_DISTANCE)
-        elif direction == "mouse_down":
-            pyautogui.moveRel(0, MOVE_DISTANCE)
-        time.sleep(MOVE_INTERVAL)
 
 def continuous_scroll(direction):
     """Scroll continuously while held."""
@@ -94,57 +74,27 @@ def continuous_scroll(direction):
             pyautogui.scroll(-SCROLL_AMOUNT)
         time.sleep(MOVE_INTERVAL)
 
-def continuous_mouse_move_once(direction):
-    """One-time mouse move for press actions."""
-    if direction == "mouse_left":
-        pyautogui.moveRel(-MOVE_DISTANCE, 0)
-    elif direction == "mouse_right":
-        pyautogui.moveRel(MOVE_DISTANCE, 0)
-    elif direction == "mouse_up":
-        pyautogui.moveRel(0, -MOVE_DISTANCE)
-    elif direction == "mouse_down":
-        pyautogui.moveRel(0, MOVE_DISTANCE)
-
-def continuous_mouse_move_distance(distance_x: int, distance_y: int):
+def move_mouse(distance_x: int, distance_y: int):
     """One-time mouse move for press actions."""
     pyautogui.moveRel(distance_x, distance_y)
 
 def perform_action(msg):
     parts = msg.strip().split(" ", 3)
     if len(parts) < 2:
-        log_event(f"Ignoring invalid command: {msg}")
+        print(f"Ignoring invalid command: {msg}")
         return
-
-    print(parts)
 
     command = parts[0].lower()
     key = parts[1].lower()
-    print(command, key)
 
     # === Handle mouse inputs ===
     if key in [
         "left_click", "right_click",
-        "mouse_left", "mouse_right",
-        "mouse_up", "mouse_down",
         "scroll_up", "scroll_down",
         "mouse"
     ]:
-        if key in ["mouse_left", "mouse_right", "mouse_up", "mouse_down", "mouse"]:
-            # Continuous movement
-            if command == "hold":
-                if not active_mouse_holds.get(key, False):
-                    active_mouse_holds[key] = True
-                    threading.Thread(target=continuous_mouse_move, args=(key,), daemon=True).start()
-                    log_event(f"Started continuous {key}")
-            elif command == "release":
-                active_mouse_holds[key] = False
-                log_event(f"Stopped continuous {key}")
-            elif command == "press":
-                print("moving mouse")
-                if len(parts) == 2:
-                    continuous_mouse_move_once(key)
-                else:
-                    continuous_mouse_move_distance(int(parts[2]), int(parts[3]))
+        if key == "mouse":
+            move_mouse(int(parts[2]), int(parts[3]))
             return
 
         if key in ["scroll_up", "scroll_down"]:
@@ -153,10 +103,10 @@ def perform_action(msg):
                 if not active_mouse_holds.get(key, False):
                     active_mouse_holds[key] = True
                     threading.Thread(target=continuous_scroll, args=(key,), daemon=True).start()
-                    log_event(f"Started continuous {key}")
+                    print(f"Started continuous {key}")
             elif command == "release":
                 active_mouse_holds[key] = False
-                log_event(f"Stopped continuous {key}")
+                print(f"Stopped continuous {key}")
             elif command == "press":
                 pyautogui.scroll(SCROLL_AMOUNT if key == "scroll_up" else -SCROLL_AMOUNT)
             return
@@ -167,10 +117,10 @@ def perform_action(msg):
                 pyautogui.click(button=button)
             elif command == "hold":
                 pyautogui.mouseDown(button=button)
-                log_event(f"Holding {button} click")
+                print(f"Holding {button} click")
             elif command == "release":
                 pyautogui.mouseUp(button=button)
-                log_event(f"Released {button} click")
+                print(f"Released {button} click")
             return
 
     # === Handle keyboard inputs ===
@@ -188,20 +138,20 @@ def perform_action(msg):
                 if not active_key_holds.get(k, False):
                     pyautogui.keyDown(k)
                     active_key_holds[k] = True
-            log_event(f"Holding {'+'.join(keys)}")
+            print(f"Holding {'+'.join(keys)}")
 
         elif command == "release":
             for k in reversed(keys):
                 if active_key_holds.get(k, False):
                     pyautogui.keyUp(k)
                     active_key_holds[k] = False
-            log_event(f"Released {'+'.join(keys)}")
+            print(f"Released {'+'.join(keys)}")
 
         else:
-            log_event(f"Unknown command: {command}")
+            print(f"Unknown command: {command}")
 
     except Exception as e:
-        log_event(f"Error performing action '{msg}': {e}")
+        print(f"Error performing action '{msg}': {e}")
 
 def reset_active_holds():
     """Release any held keys or mouse actions when the connection ends."""
@@ -213,7 +163,7 @@ def reset_active_holds():
             try:
                 pyautogui.keyUp(key)
             except Exception as exc:
-                log_event(f"Error releasing key '{key}': {exc}")
+                print(f"Error releasing key '{key}': {exc}")
         active_key_holds[key] = False
 
 # --------------- MODEL SETUP ----------------
@@ -237,15 +187,15 @@ mappings = {
     "like": ["scroll_up", "hold"],
     "mute": ["volume_toggle", "press"],
     "ok": ["enter", "press"],
-    "one": ["left_click", "press"],
+    "one": ["left_click", "hold"],
     "palm": ["space", "press"],
     "peace": ["winleft", "press"],
     "peace_inverted": ["alt", "hold"],
     "rock": ["w", "press"],
-    "stop": ["mouse_up", "hold"],
-    "stop_inverted": ["mouse_down", "hold"],
-    "three": ["mouse_right", "hold"],
-    "three2": ["mouse_left", "hold"],
+    "stop": ["mouse", "move"],
+    "stop_inverted": ["game", "hold"],
+    "three": ["shift", "hold"],
+    "three2": ["left_click", "press"],
     "two_up": ["right_click", "press"],
     "two_up_inverted": ["ctrl", "hold"]
 }
@@ -320,6 +270,27 @@ def add_text(frame: np.ndarray, gesture: dict, hand_label: str):
     cv2.putText(frame, text, (x_offset, yd),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
 
+def calc_mouse_move():
+    global msg, prev_coord_x, prev_coord_y
+    # The landmark coordinates are normalized (0.0 to 1.0)
+    # To get pixel coordinates, you multiply by the frame dimensions.
+    index_finger_tip = hand_landmarks.landmark[
+        mp.solutions.hands.HandLandmark.INDEX_FINGER_TIP]
+
+    # Calculate pixel coordinates
+    cx, cy = int(index_finger_tip.x * w), int(index_finger_tip.y * h)
+    if prev_coord_x is not None and prev_coord_y is not None:
+        dx = cx - prev_coord_x
+        dy = cy - prev_coord_y
+        msg = "press mouse " + str(dx * sens) + " " + str(dy * sens)
+        perform_action(msg)
+
+    prev_coord_x, prev_coord_y = cx, cy
+
+    # You can now use these coordinates (cx, cy) to track the finger's movement.
+    # For example, let's draw a circle on the fingertip.
+    cv2.circle(frame, (cx, cy), 10, (255, 0, 255), cv2.FILLED)
+
 # --------------- MAIN LOOP ----------------
 if __name__ == "__main__":
     user_settings = load_json()
@@ -375,28 +346,9 @@ if __name__ == "__main__":
                         print(hand + " Hand     " + "Detected Gesture: " + label)
                         data = {"gesture": label, "confidence": float(top3[0][1])}
 
-                        if label == "palm":
-                            # The landmark coordinates are normalized (0.0 to 1.0)
-                            # To get pixel coordinates, you multiply by the frame dimensions.
-                            index_finger_tip = hand_landmarks.landmark[
-                                mp.solutions.hands.HandLandmark.INDEX_FINGER_TIP]
-
-                            # Calculate pixel coordinates
-                            cx, cy = int(index_finger_tip.x * w), int(index_finger_tip.y * h)
-                            if prev_coord_x is not None and prev_coord_y is not None:
-                                dx = cx - prev_coord_x
-                                dy = cy - prev_coord_y
-                                print("distance x: ", dx,  "    distance y: ", dy)
-                                msg = "press mouse " + str(dx * sens) + " " +  str(dy * sens)
-                                print(msg)
-                                perform_action(msg)
-                                prev_coord_x, prev_coord_y = cx, cy
-                            else:
-                                prev_coord_x, prev_coord_y = cx, cy
-
-                            # You can now use these coordinates (cx, cy) to track the finger's movement.
-                            # For example, let's draw a circle on the fingertip.
-                            cv2.circle(frame, (cx, cy), 10, (255, 0, 255), cv2.FILLED)
+                        if mappings.get(label)[0] == "mouse":
+                            calc_mouse_move()
+                            state['input_sent'] = True
 
                         # Has this input already been sent to the device?
                         if not state['input_sent']:
@@ -412,12 +364,12 @@ if __name__ == "__main__":
                     mp_draw.draw_landmarks(frame, hand_landmarks,
                                            mp.solutions.hands.HAND_CONNECTIONS)
 
-                    add_text(frame, data, hand) # Add text to the frame to show the 3 most likely gestures
+                    add_text(frame, data, hand) # Add text to the frame to show the current gesture for both hands
 
             else:
                 prev_coord_x, prev_coord_y = None, None
 
-            # No hand detected in frame
+            # Loop over both hands to check if they are in frame
             for hand_label in ['left', 'right']:
                 if hand_label not in detected_hands:
                     state = hand_states[hand_label]
@@ -436,8 +388,6 @@ if __name__ == "__main__":
                         state['frame_count'] = 0
                         state['previous_gesture'] = ""
 
-            cv2.imwrite(FRAME_PATH, frame) # Store the frame so that the webserver can fetch it
-
             #time.sleep(0.01)
 
             cv2.imshow("Gesture Detector + Classifier", frame)
@@ -448,6 +398,3 @@ if __name__ == "__main__":
             print("\nStopped by user.")
             cap.release()
             cv2.destroyAllWindows()
-        finally:
-            empty_frame = np.zeros((480, 640, 3), dtype=np.uint8)
-            cv2.imwrite(FRAME_PATH, empty_frame)  # Clear the frame
