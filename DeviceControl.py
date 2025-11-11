@@ -4,16 +4,12 @@ import numpy as np
 import mediapipe as mp
 import threading
 import time
-import queue
 import os
 import json
 from pathlib import Path
-
 import pyautogui
 
 from Pi.webserver.config.paths import PROJECT_ROOT
-
-log_queue = queue.Queue()
 
 def get_config_path():
     """Return the platform-specific path to the PiVision config file."""
@@ -29,13 +25,38 @@ def get_config_path():
 
 CONFIG_PATH = get_config_path()
 
+# --- Constants ---
+DEFAULT_SETTINGS = {
+    "MOVE_DISTANCE": 20,
+    "MOVE_INTERVAL": 0.03,
+    "SCROLL_AMOUNT": 100,
+    "MOUSE_SENSITIVITY": 5,
+    "MIN_HOLD_FRAMES": 3,
+    "MAPPINGS": {
+        "call": ["esc", "press"],
+        "dislike": ["scroll_down", "hold"],
+        "fist": ["delete", "press"],
+        "four": ["tab", "press"],
+        "like": ["scroll_up", "hold"],
+        "mute": ["volume_toggle", "press"],
+        "ok": ["enter", "press"],
+        "one": ["left_click", "hold"],
+        "palm": ["space", "press"],
+        "peace": ["winleft", "press"],
+        "peace_inverted": ["alt", "hold"],
+        "rock": ["w", "press"],
+        "stop": ["mouse", "move"],
+        "stop_inverted": ["game", "hold"],
+        "three": ["shift", "hold"],
+        "three2": ["left_click", "press"],
+        "two_up": ["right_click", "press"],
+        "two_up_inverted": ["ctrl", "hold"]
+    }
+}
+
 def load_json():
     """Load settings from JSON file or use defaults if missing."""
-    defaults = {
-        "MOVE_DISTANCE": 20,
-        "MOVE_INTERVAL": 0.03,
-        "SCROLL_AMOUNT": 100
-    }
+    defaults = DEFAULT_SETTINGS.copy()
 
     if os.path.exists(CONFIG_PATH):
         try:
@@ -56,14 +77,11 @@ def save_json(settings):
     except Exception as e:
         print(f"Error saving config: {e}")
 
-# Keep track of held states
+# --- Action Performers ---
+
+# Keep track of held states globally for pyautogui
 active_mouse_holds = {}
 active_key_holds = {}
-
-# Adjustable sensitivity
-MOVE_DISTANCE = 20     # pixels per step
-MOVE_INTERVAL = 0.03   # seconds between steps
-SCROLL_AMOUNT = 100    # scroll step size
 
 def continuous_scroll(direction):
     """Scroll continuously while held."""
@@ -75,7 +93,7 @@ def continuous_scroll(direction):
         time.sleep(MOVE_INTERVAL)
 
 def move_mouse(distance_x: int, distance_y: int):
-    """One-time mouse move for press actions."""
+    """One-time mouse move for per frame movements."""
     pyautogui.moveRel(distance_x, distance_y)
 
 def perform_action(msg):
@@ -166,12 +184,188 @@ def reset_active_holds():
                 print(f"Error releasing key '{key}': {exc}")
         active_key_holds[key] = False
 
-# --------------- MODEL SETUP ----------------
-model_path = os.path.join(PROJECT_ROOT, "Models", "gesture_model_v4_handcrop.onnx")
+# --- Gesture and State Management Classes ---
 
-session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
-input_name = session.get_inputs()[0].name
+class HandState:
+    """Encapsulates the state of a single hand."""
+    def __init__(self):
+        self.previous_gesture = ""
+        self.frame_count = 0
+        self.hold_gesture = False
+        self.input_sent = False
+        self.prev_coords = None
 
+    def reset(self):
+        self.previous_gesture = ""
+        self.frame_count = 0
+        self.hold_gesture = False
+        self.input_sent = False
+        self.prev_coords = None
+
+class GestureController:
+    """Manages gesture detection, state, and action dispatching."""
+    def __init__(self, settings):
+        self.settings = settings
+        self.mappings = settings["MAPPINGS"]
+        self.min_hold_frames = settings["MIN_HOLD_FRAMES"]
+        self.mouse_sensitivity = settings["MOUSE_SENSITIVITY"]
+
+        # Model setup
+        model_path = os.path.join(PROJECT_ROOT, "Models", "gesture_model_v4_handcrop.onnx")
+        self.session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
+        self.input_name = self.session.get_inputs()[0].name
+        self.classes = [
+            'call', 'dislike', 'fist', 'four', 'like', 'mute', 'ok', 'one',
+            'palm', 'peace', 'peace_inverted', 'rock', 'stop', 'stop_inverted',
+            'three', 'three2', 'two_up', 'two_up_inverted'
+        ]
+
+        # Mediapipe setup
+        self.mp_hands = mp.solutions.hands.Hands(
+            max_num_hands=2,
+            min_detection_confidence=0.75,
+            min_tracking_confidence=0.75
+        )
+        self.mp_draw = mp.solutions.drawing_utils
+
+        # State tracking for each hand
+        self.hand_states = {'left': HandState(), 'right': HandState()}
+
+    def process_frame(self, frame: np.ndarray, hand_landmarks) -> tuple[str, list[tuple[str, float]]]:
+        """Process the frame and then pass it through ML model to detect gesture."""
+        h, w, _ = frame.shape
+        # Find the coordinates of all plotted hand points
+        xs = [int(p.x * w) for p in hand_landmarks.landmark]
+        ys = [int(p.y * h) for p in hand_landmarks.landmark]
+        margin = 30
+
+        # Crop the image around the hand to feed into the ML model
+        x1, y1 = max(min(xs) - margin, 0), max(min(ys) - margin, 0)
+        x2, y2 = min(max(xs) + margin, w), min(max(ys) + margin, h)
+        hand_img = frame[y1:y2, x1:x2]
+
+        # Double check that the cropped image is valid
+        if hand_img.size == 0:
+            return "none", []
+
+        # Preprocess the image before passing into ML model
+        img = cv2.resize(hand_img, (224, 224))
+        img = img.astype(np.float32) / 255.0
+        img = (img - [0.485, 0.456, 0.406]) / [0.229, 0.224, 0.225]
+        img = np.transpose(img, (2, 0, 1))[np.newaxis, :].astype(np.float32)
+
+        # Pass the image into the model and get the output
+        outputs = self.session.run(None, {self.input_name: img})
+        logits = outputs[0][0]
+        probs = np.exp(logits) / np.sum(np.exp(logits))
+
+        pred_idx = np.argmax(outputs[0])
+        label = self.classes[pred_idx]
+
+        # Return the detected gesture and it's probability
+        return label, probs[0]
+
+    def _handle_gesture_change(self, state: HandState):
+        """Handle logic when a gesture changes."""
+        if state.input_sent and self.mappings.get(state.previous_gesture, ["", ""])[1] == "hold":
+            msg = f"release {self.mappings[state.previous_gesture][0]}"
+            perform_action(msg)
+        state.reset()
+
+    def _calculate_and_perform_mouse_move(self, state: HandState, hand_landmarks, frame_shape):
+        """Calculates mouse movement based on index fingertip and performs the move."""
+        h, w, _ = frame_shape
+        # Get the coordinates of the index fingertip
+        index_finger_tip = hand_landmarks.landmark[mp.solutions.hands.HandLandmark.INDEX_FINGER_TIP]
+        cx, cy = int(index_finger_tip.x * w), int(index_finger_tip.y * h)
+
+        # If the hand moved
+        if state.prev_coords:
+            px, py = state.prev_coords
+            dx = (cx - px) * self.mouse_sensitivity
+            dy = (cy - py) * self.mouse_sensitivity
+            if dx != 0 or dy != 0:
+                msg = f"press mouse {dx} {dy}"
+                perform_action(msg)
+
+        # Update the stored coords to ensure correct calculation in the next frame
+        state.prev_coords = (cx, cy)
+
+        return (cx, cy)
+
+    def run_detection(self, frame):
+        """Processes a single camera frame for gesture detection."""
+        frame = cv2.flip(frame, 1) # Flip the camera input so that right and left is correct
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = self.mp_hands.process(rgb_frame) # Find the hands in the frame
+
+        detected_hands = set()
+        # If there is a hand in frame
+        if results.multi_hand_landmarks:
+            # Loop through detected hands to recognise gesture
+            for idx, hand_landmarks in enumerate(results.multi_hand_landmarks):
+                # Get the hand that is being processed
+                hand_label = results.multi_handedness[idx].classification[0].label.lower()
+                detected_hands.add(hand_label)
+                state = self.hand_states[hand_label]
+
+                # Pass the frame through the ML model to get the performed gesture and probability
+                label, prob = self.process_frame(frame, hand_landmarks)
+
+                # Is the currently detected gesture different from the one in the previous frame
+                # for this hand?
+                if label != state.previous_gesture:
+                    self._handle_gesture_change(state)
+                    state.previous_gesture = label
+
+                # Has the gesture been held for a sufficient amount or is it still being held?
+                if state.frame_count >= self.min_hold_frames or state.hold_gesture:
+                    # Has the gesture just started to be held?
+                    if not state.hold_gesture:
+                        state.hold_gesture = True # Mark the gesture as held
+                        print(f"{hand_label.capitalize()} Hand Detected Gesture: {label}")
+
+                    # Get the input mapped to this gesture
+                    action_key, action_type = self.mappings.get(label, [None, None])
+
+                    # Is the user moving the mouse?
+                    if action_key == "mouse":
+                        # Move the mouse based on hand movements
+                        coords = self._calculate_and_perform_mouse_move(state, hand_landmarks,
+                                                                        frame.shape)
+                        cv2.circle(frame, coords, 10, (255, 0, 255), cv2.FILLED)
+                        state.input_sent = True # Mark input as sent to prevent double movement
+                    # Is the user holding a mouse button?
+                    elif "click" in action_key and action_type == "hold":
+                        # Move the mouse based on hand movements
+                        coords = self._calculate_and_perform_mouse_move(state, hand_landmarks,
+                                                                        frame.shape)
+                        cv2.circle(frame, coords, 10, (255, 0, 255), cv2.FILLED)
+
+                    # Has the input been sent yet?
+                    if not state.input_sent:
+                        msg = f"{action_type} {action_key}" # Create the input message
+                        perform_action(msg)
+                        state.input_sent = True
+
+                else: # Gesture is the same, but not held long enough yet
+                    state.frame_count += 1
+
+                # Drawing
+                self.mp_draw.draw_landmarks(frame, hand_landmarks, mp.solutions.hands.HAND_CONNECTIONS)
+                data = {"gesture": label, "confidence": prob if prob else 0.0}
+                add_text(frame, data, hand_label)
+
+        # Handle hands that are no longer detected
+        for hand_label in ['left', 'right']:
+            if hand_label not in detected_hands:
+                state = self.hand_states[hand_label]
+                if state.previous_gesture:
+                    self._handle_gesture_change(state)
+
+        return frame
+
+# Default mappings if not in config
 classes = [
     'call', 'dislike', 'fist', 'four',
     'like', 'mute', 'ok', 'one',
@@ -200,60 +394,10 @@ mappings = {
     "two_up_inverted": ["ctrl", "hold"]
 }
 
-# --------------- MAPPINGS UPDATE SETUP ----------------
+if "MAPPINGS" not in DEFAULT_SETTINGS or not DEFAULT_SETTINGS["MAPPINGS"]:
+    DEFAULT_SETTINGS["MAPPINGS"] = mappings
 
-# --------------- MEDIAPIPE SETUP ----------------
-cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_FPS, 30)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-mp_hands = mp.solutions.hands.Hands(max_num_hands=2,
-    min_detection_confidence=0.75, min_tracking_confidence=0.75)
-mp_draw = mp.solutions.drawing_utils
-
-# State tracking for each hand
-hand_states = {
-    'left': {'previous_gesture': "", 'frame_count': 0, 'hold_gesture': False, 'input_sent': False},
-    'right': {'previous_gesture': "", 'frame_count': 0, 'hold_gesture': False, 'input_sent': False}
-}
-
-minimum_hold = 3        # How many frames the gesture has to be held in order to be valid
-prev_coord_x, prev_coord_y = None, None
-
-# --------------- GESTURE DETECTION METHODS ----------------
-def process_frame(frame: np.ndarray, hand_landmarks) -> tuple[str, list[tuple[str, float]]]:
-    """Process the frame and then pass it through ML model to detect gesture."""
-    h, w, _ = frame.shape # Get the dimensions of the frame
-    xs = [int(p.x * w) for p in hand_landmarks.landmark] # Get the x and y coordinates of the hand
-    ys = [int(p.y * h) for p in hand_landmarks.landmark]
-    margin = 30
-    x1 = max(min(xs) - margin, 0) # Cut out an image of the hand
-    y1 = max(min(ys) - margin, 0)
-    x2 = min(max(xs) + margin, w)
-    y2 = min(max(ys) + margin, h)
-    hand_img = frame[y1:y2, x1:x2]
-
-    # Prevent crash if crop is empty
-    if hand_img.size == 0:
-        return "none", []
-
-    # Preprocess for model
-    img = cv2.resize(hand_img, (224, 224))
-    img = img.astype(np.float32) / 255.0
-    img = (img - [0.485, 0.456, 0.406]) / [0.229, 0.224, 0.225]
-    img = np.transpose(img, (2, 0, 1))[np.newaxis, :].astype(np.float32)
-
-    # Feed hand image into the ML model to detect gesture
-    outputs = session.run(None, {input_name: img})
-
-    logits = outputs[0][0]  # raw model outputs
-    probs = np.exp(logits) / np.sum(np.exp(logits))  # softmax
-    top3_idx = np.argsort(probs)[-3:][::-1]  # indices of top 3 classes
-    top3 = [(classes[i], probs[i]) for i in top3_idx]
-
-    pred = np.argmax(outputs[0])
-    label = classes[pred]
-    return label, top3
+# --- UI and Helper Functions ---
 
 def add_text(frame: np.ndarray, gesture: dict, hand_label: str):
     """Add text to the frame to show the most likely gesture, positioning right hand text on the right."""
@@ -270,129 +414,37 @@ def add_text(frame: np.ndarray, gesture: dict, hand_label: str):
     cv2.putText(frame, text, (x_offset, yd),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
 
-def calc_mouse_move():
-    global msg, prev_coord_x, prev_coord_y
-    # The landmark coordinates are normalized (0.0 to 1.0)
-    # To get pixel coordinates, you multiply by the frame dimensions.
-    index_finger_tip = hand_landmarks.landmark[
-        mp.solutions.hands.HandLandmark.INDEX_FINGER_TIP]
-
-    # Calculate pixel coordinates
-    cx, cy = int(index_finger_tip.x * w), int(index_finger_tip.y * h)
-    if prev_coord_x is not None and prev_coord_y is not None:
-        dx = cx - prev_coord_x
-        dy = cy - prev_coord_y
-        msg = "press mouse " + str(dx * sens) + " " + str(dy * sens)
-        perform_action(msg)
-
-    prev_coord_x, prev_coord_y = cx, cy
-
-    # You can now use these coordinates (cx, cy) to track the finger's movement.
-    # For example, let's draw a circle on the fingertip.
-    cv2.circle(frame, (cx, cy), 10, (255, 0, 255), cv2.FILLED)
-
-# --------------- MAIN LOOP ----------------
-if __name__ == "__main__":
+def main():
+    """Main function to run the gesture detection loop."""
     user_settings = load_json()
-
+    # Update global settings used by pyautogui functions
+    global MOVE_DISTANCE, MOVE_INTERVAL, SCROLL_AMOUNT
     MOVE_DISTANCE = user_settings["MOVE_DISTANCE"]
     MOVE_INTERVAL = user_settings["MOVE_INTERVAL"]
     SCROLL_AMOUNT = user_settings["SCROLL_AMOUNT"]
-    sens = 5
+
+    # Initialize camera
+    cap = cv2.VideoCapture(0)
+    cap.set(cv2.CAP_PROP_FPS, 30)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+    if not cap.isOpened():
+        print("Error: Could not open video stream.")
+        return
+
+    controller = GestureController(user_settings)
 
     while True:
         try:
-            data = {"gesture": "none", "confidence": 0.0} # Initialise the default json
-
             ret, frame = cap.read()
             if not ret:
+                print("Info: End of video stream.")
                 break
 
-            frame = cv2.flip(frame, 1) # Mirror the frame
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = mp_hands.process(rgb)
+            processed_frame = controller.run_detection(frame)
 
-            detected_hands = set()
-            if results.multi_hand_landmarks: # Is there a hand detected?
-                for idx, hand_landmarks in enumerate(results.multi_hand_landmarks):
-                    hand = results.multi_handedness[idx].classification[0].label.lower()
-                    detected_hands.add(hand)
-                    state = hand_states[hand]
-
-                    h, w, _ = frame.shape
-
-                    # Pass into the ML model to recognise gestures
-                    label, top3 = process_frame(frame, hand_landmarks)
-
-                    # If the detected gesture changed from the previous frame
-                    if label != state['previous_gesture']:
-                        # Was the previous input sent, and was it a hold input?
-                        if (state['input_sent'] and mappings.get(state['previous_gesture'])[1] ==
-                                "hold"):
-                            # Send release command to device
-                            msg = "release" + " " + mappings.get(state['previous_gesture'])[0]
-                            perform_action(msg)
-
-                        # Reset variables
-                        state['hold_gesture'] = False
-                        state['input_sent'] = False
-                        state['previous_gesture'] = label
-                        state['frame_count'] = 0
-
-                    # Has the current gesture been held long enough?
-                    if state['frame_count'] == minimum_hold or state['hold_gesture']:
-                        state['hold_gesture'] = True
-                        state['frame_count'] = 0
-                        print(hand + " Hand     " + "Detected Gesture: " + label)
-                        data = {"gesture": label, "confidence": float(top3[0][1])}
-
-                        if mappings.get(label)[0] == "mouse":
-                            calc_mouse_move()
-                            state['input_sent'] = True
-                        elif "click" in mappings.get(label)[0] and mappings.get(label)[1] == "hold":
-                            calc_mouse_move()
-
-                        # Has this input already been sent to the device?
-                        if not state['input_sent']:
-                            msg = mappings.get(label)[1] + " " + mappings.get(label)[0]
-                            perform_action(msg)
-
-                        state['input_sent'] = True
-
-                    # Gesture hasn't changed but is still held
-                    elif label == state['previous_gesture']:
-                        state['frame_count'] += 1
-
-                    mp_draw.draw_landmarks(frame, hand_landmarks,
-                                           mp.solutions.hands.HAND_CONNECTIONS)
-
-                    add_text(frame, data, hand) # Add text to the frame to show the current gesture for both hands
-
-            else:
-                prev_coord_x, prev_coord_y = None, None
-
-            # Loop over both hands to check if they are in frame
-            for hand_label in ['left', 'right']:
-                if hand_label not in detected_hands:
-                    state = hand_states[hand_label]
-                    # Was there a hand in the previous frame?
-                    if state['previous_gesture'] != "":
-                        # Was the previous input sent, and was it a hold input?
-                        if (state['input_sent'] and mappings.get(state['previous_gesture'])[1] ==
-                                "hold"):
-                            # Send release command to device
-                            msg = "release" + " " + mappings.get(state['previous_gesture'])[0]
-                            perform_action(msg)
-
-                        # Reset variables
-                        state['hold_gesture'] = False
-                        state['input_sent'] = False
-                        state['frame_count'] = 0
-                        state['previous_gesture'] = ""
-
-            #time.sleep(0.01)
-
-            cv2.imshow("Gesture Detector + Classifier", frame)
+            cv2.imshow("Gesture Detector + Classifier", processed_frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
@@ -400,3 +452,7 @@ if __name__ == "__main__":
             print("\nStopped by user.")
             cap.release()
             cv2.destroyAllWindows()
+            reset_active_holds()
+
+if __name__ == "__main__":
+    main()
