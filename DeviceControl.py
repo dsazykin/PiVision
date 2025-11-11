@@ -436,7 +436,7 @@ if __name__ == "__main__":
 
             cv2.imwrite(FRAME_PATH, frame) # Store the frame so that the webserver can fetch it
 
-            time.sleep(0.05)
+            #time.sleep(0.01)
 
             cv2.imshow("Gesture Detector + Classifier", frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
