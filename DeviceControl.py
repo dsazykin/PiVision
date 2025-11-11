@@ -349,6 +349,8 @@ if __name__ == "__main__":
                         if mappings.get(label)[0] == "mouse":
                             calc_mouse_move()
                             state['input_sent'] = True
+                        elif "click" in mappings.get(label)[0] and mappings.get(label)[1] == "hold":
+                            calc_mouse_move()
 
                         # Has this input already been sent to the device?
                         if not state['input_sent']:
