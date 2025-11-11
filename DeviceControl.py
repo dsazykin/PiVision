@@ -105,23 +105,31 @@ def continuous_mouse_move_once(direction):
     elif direction == "mouse_down":
         pyautogui.moveRel(0, MOVE_DISTANCE)
 
+def continuous_mouse_move_distance(distance_x: int, distance_y: int):
+    """One-time mouse move for press actions."""
+    pyautogui.moveRel(distance_x, distance_y)
+
 def perform_action(msg):
-    parts = msg.strip().split(" ", 1)
-    if len(parts) != 2:
+    parts = msg.strip().split(" ", 3)
+    if len(parts) < 2:
         log_event(f"Ignoring invalid command: {msg}")
         return
 
+    print(parts)
+
     command = parts[0].lower()
     key = parts[1].lower()
+    print(command, key)
 
     # === Handle mouse inputs ===
     if key in [
         "left_click", "right_click",
         "mouse_left", "mouse_right",
         "mouse_up", "mouse_down",
-        "scroll_up", "scroll_down"
+        "scroll_up", "scroll_down",
+        "mouse"
     ]:
-        if key in ["mouse_left", "mouse_right", "mouse_up", "mouse_down"]:
+        if key in ["mouse_left", "mouse_right", "mouse_up", "mouse_down", "mouse"]:
             # Continuous movement
             if command == "hold":
                 if not active_mouse_holds.get(key, False):
@@ -132,7 +140,11 @@ def perform_action(msg):
                 active_mouse_holds[key] = False
                 log_event(f"Stopped continuous {key}")
             elif command == "press":
-                continuous_mouse_move_once(key)
+                print("moving mouse")
+                if len(parts) == 2:
+                    continuous_mouse_move_once(key)
+                else:
+                    continuous_mouse_move_distance(int(parts[2]), int(parts[3]))
             return
 
         if key in ["scroll_up", "scroll_down"]:
@@ -254,6 +266,7 @@ hand_states = {
 }
 
 minimum_hold = 3        # How many frames the gesture has to be held in order to be valid
+prev_coord_x, prev_coord_y = None, None
 
 # --------------- GESTURE DETECTION METHODS ----------------
 def process_frame(frame: np.ndarray, hand_landmarks) -> tuple[str, list[tuple[str, float]]]:
@@ -312,6 +325,7 @@ if __name__ == "__main__":
     MOVE_DISTANCE = user_settings["MOVE_DISTANCE"]
     MOVE_INTERVAL = user_settings["MOVE_INTERVAL"]
     SCROLL_AMOUNT = user_settings["SCROLL_AMOUNT"]
+    sens = 5
 
     while True:
         try:
@@ -331,6 +345,8 @@ if __name__ == "__main__":
                     hand = results.multi_handedness[idx].classification[0].label.lower()
                     detected_hands.add(hand)
                     state = hand_states[hand]
+
+                    h, w, _ = frame.shape
 
                     # Pass into the ML model to recognise gestures
                     label, top3 = process_frame(frame, hand_landmarks)
@@ -357,6 +373,29 @@ if __name__ == "__main__":
                         print(hand + " Hand     " + "Detected Gesture: " + label)
                         data = {"gesture": label, "confidence": float(top3[0][1])}
 
+                        if label == "palm":
+                            # The landmark coordinates are normalized (0.0 to 1.0)
+                            # To get pixel coordinates, you multiply by the frame dimensions.
+                            index_finger_tip = hand_landmarks.landmark[
+                                mp.solutions.hands.HandLandmark.INDEX_FINGER_TIP]
+
+                            # Calculate pixel coordinates
+                            cx, cy = int(index_finger_tip.x * w), int(index_finger_tip.y * h)
+                            if prev_coord_x is not None and prev_coord_y is not None:
+                                dx = cx - prev_coord_x
+                                dy = cy - prev_coord_y
+                                print("distance x: ", dx,  "    distance y: ", dy)
+                                msg = "press mouse " + str(dx * sens) + " " +  str(dy * sens)
+                                print(msg)
+                                perform_action(msg)
+                                prev_coord_x, prev_coord_y = cx, cy
+                            else:
+                                prev_coord_x, prev_coord_y = cx, cy
+
+                            # You can now use these coordinates (cx, cy) to track the finger's movement.
+                            # For example, let's draw a circle on the fingertip.
+                            cv2.circle(frame, (cx, cy), 10, (255, 0, 255), cv2.FILLED)
+
                         # Has this input already been sent to the device?
                         if not state['input_sent']:
                             msg = mappings.get(label)[1] + " " + mappings.get(label)[0]
@@ -372,6 +411,9 @@ if __name__ == "__main__":
                                            mp.solutions.hands.HAND_CONNECTIONS)
 
                     add_text(frame, data, hand) # Add text to the frame to show the 3 most likely gestures
+
+            else:
+                prev_coord_x, prev_coord_y = None, None
 
             # No hand detected in frame
             for hand_label in ['left', 'right']:
