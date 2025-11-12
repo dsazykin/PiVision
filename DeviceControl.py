@@ -211,8 +211,20 @@ class GestureController:
         self.mouse_sensitivity = settings["MOUSE_SENSITIVITY"]
 
         # Model setup
+        available_providers = ort.get_available_providers()
+        print(f"Available ONNX Providers: {available_providers}")
+        provider = "CPUExecutionProvider" # Default
+        if "DmlExecutionProvider" in available_providers:
+            provider = "DmlExecutionProvider"
+            print("Using DirectML Execution Provider (GPU).")
+        elif "CUDAExecutionProvider" in available_providers:
+            provider = "CUDAExecutionProvider"
+            print("Using CUDA Execution Provider (NVIDIA GPU).")
+        else:
+            print("Using CPU Execution Provider.")
+
         model_path = os.path.join(PROJECT_ROOT, "Models", "gesture_model_v4_handcrop.onnx")
-        self.session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
+        self.session = ort.InferenceSession(model_path, providers=[provider])
         self.input_name = self.session.get_inputs()[0].name
         self.classes = [
             'call', 'dislike', 'fist', 'four', 'like', 'mute', 'ok', 'one',
@@ -222,6 +234,7 @@ class GestureController:
 
         # Mediapipe setup
         self.mp_hands = mp.solutions.hands.Hands(
+            model_complexity=0,  # Use the lighter-weight model (0) instead of the default (1)
             max_num_hands=2,
             min_detection_confidence=0.75,
             min_tracking_confidence=0.75
@@ -231,7 +244,7 @@ class GestureController:
         # State tracking for each hand
         self.hand_states = {'left': HandState(), 'right': HandState()}
 
-    def process_frame(self, frame: np.ndarray, hand_landmarks) -> tuple[str, list[tuple[str, float]]]:
+    def process_frame(self, frame: np.ndarray, hand_landmarks) -> str:
         """Process the frame and then pass it through ML model to detect gesture."""
         h, w, _ = frame.shape
         # Find the coordinates of all plotted hand points
@@ -246,7 +259,7 @@ class GestureController:
 
         # Double check that the cropped image is valid
         if hand_img.size == 0:
-            return "none", []
+            return "none"
 
         # Preprocess the image before passing into ML model
         img = cv2.resize(hand_img, (224, 224))
@@ -256,14 +269,11 @@ class GestureController:
 
         # Pass the image into the model and get the output
         outputs = self.session.run(None, {self.input_name: img})
-        logits = outputs[0][0]
-        probs = np.exp(logits) / np.sum(np.exp(logits))
-
         pred_idx = np.argmax(outputs[0])
         label = self.classes[pred_idx]
 
-        # Return the detected gesture and it's probability
-        return label, probs[0]
+        # Return the detected gesture
+        return label
 
     def _handle_gesture_change(self, state: HandState):
         """Handle logic when a gesture changes."""
@@ -310,7 +320,7 @@ class GestureController:
                 state = self.hand_states[hand_label]
 
                 # Pass the frame through the ML model to get the performed gesture and probability
-                label, prob = self.process_frame(frame, hand_landmarks)
+                label = self.process_frame(frame, hand_landmarks)
 
                 # Is the currently detected gesture different from the one in the previous frame
                 # for this hand?
@@ -353,7 +363,7 @@ class GestureController:
 
                 # Drawing
                 self.mp_draw.draw_landmarks(frame, hand_landmarks, mp.solutions.hands.HAND_CONNECTIONS)
-                data = {"gesture": label, "confidence": prob if prob else 0.0}
+                data = {"gesture": label, "confidence": 0.0} # Confidence removed for performance
                 add_text(frame, data, hand_label)
 
         # Handle hands that are no longer detected
@@ -410,7 +420,10 @@ def add_text(frame: np.ndarray, gesture: dict, hand_label: str):
     cv2.putText(frame, f"Hand: {hand_label.capitalize()}", (x_offset, yh),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2, cv2.LINE_AA)
 
-    text = f"{gesture.get('gesture')}: {gesture.get('confidence', 0.0) * 100:.1f}%"
+    # Confidence calculation was removed for performance, so we just show the gesture.
+    # If you re-enable it, you can use the old text format.
+    text = f"Gesture: {gesture.get('gesture')}"
+    # text = f"{gesture.get('gesture')}: {gesture.get('confidence', 0.0) * 100:.1f}%"
     cv2.putText(frame, text, (x_offset, yd),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
 
