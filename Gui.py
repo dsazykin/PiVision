@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 import json
 from pathlib import Path
+from copy import deepcopy
 
 # ---------- User Settings Management (local to GUI) ----------
 
@@ -615,15 +616,26 @@ class MappingsPage(QWidget):
 
     def revert_mappings(self):
         """Restore the default preset mappings from DEFAULT_USER_SETTINGS."""
-        confirm = QMessageBox.question(self, "Revert Mappings", "Are you sure you want to revert all mappings to default?", QMessageBox.Yes | QMessageBox.No)
+        confirm = QMessageBox.question(
+            self, "Revert Mappings",
+            "Are you sure you want to revert all mappings to default?",
+            QMessageBox.Yes | QMessageBox.No
+        )
         if confirm != QMessageBox.Yes:
             return
-        # copy defaults into user_settings
-        default_presets = DEFAULT_USER_SETTINGS.get("presets", {})
-        if "presets" not in self.parent_window.user_settings:
-            self.parent_window.user_settings["presets"] = {}
-        self.parent_window.user_settings["presets"]["default"] = default_presets.get("default", {}).copy()
+
+        # deep copy default preset to avoid shared references
+        default_presets = deepcopy(DEFAULT_USER_SETTINGS.get("presets", {}))
+
+        # overwrite user_settings
+        self.parent_window.user_settings["presets"] = default_presets
         self.parent_window.user_settings["active_preset"] = "default"
+
+        # update preset selector in UI
+        self.preset_selector.clear()
+        self.preset_selector.addItems(list(default_presets.keys()))
+        self.preset_selector.setCurrentText("default")
+
         save_user_settings(self.parent_window.user_settings)
         QMessageBox.information(self, "Reverted", "Mappings reverted to default.")
         self.populate_from_settings()
