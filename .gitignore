@@ -10,3 +10,4 @@ WebServer/__pycache__
 /WebServerStream
 .env
 Pi/webserver/config/__pycache__
+user_settings.json
