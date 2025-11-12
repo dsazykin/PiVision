@@ -197,6 +197,7 @@ class HandState:
         self.input_sent = False
         self.prev_coords = None
         self.game_coords = None
+        self.holds = []
 
     def reset(self):
         self.previous_gesture = ""
@@ -205,6 +206,7 @@ class HandState:
         self.input_sent = False
         self.prev_coords = None
         self.game_coords = None
+        self.holds = []
 
 class GestureController:
     """Manages gesture detection, state, and action dispatching."""
@@ -284,6 +286,10 @@ class GestureController:
 
     def _handle_gesture_change(self, state: HandState):
         """Handle logic when a gesture changes."""
+        if self.mappings.get(state.previous_gesture, ["", ""])[0] == "game":
+            for button in state.holds:
+                msg = f"release {button}"
+                perform_action(msg)
         if state.input_sent and self.mappings.get(state.previous_gesture, ["", ""])[1] == "hold":
             msg = f"release {self.mappings[state.previous_gesture][0]}"
             perform_action(msg)
@@ -328,19 +334,41 @@ class GestureController:
             dy = (cy - py)
 
             # Has the index point moved vertically outside the margin area
-            if dy >= self.move_margin:
-                msg = "press s"
+            if dy >= self.move_margin and "s" not in state.holds:
+                msg = "hold s"
                 perform_action(msg)
-            elif dy <= -self.move_margin:
-                msg = "press w"
+                state.holds.append("s")
+            elif "s" in state.holds and not dy >= self.move_margin:
+                state.holds.remove("s")
+                msg = "release s"
+                perform_action(msg)
+
+            elif dy <= -self.move_margin and "w" not in state.holds:
+                msg = "hold w"
+                perform_action(msg)
+                state.holds.append("w")
+            elif "w" in state.holds and not dy <= -self.move_margin:
+                state.holds.remove("w")
+                msg = "release w"
                 perform_action(msg)
 
             # Has the index point moved horizontally outside the margin area
-            if dx >= self.move_margin:
-                msg = "press d"
+            if dx >= self.move_margin and "d" not in state.holds:
+                msg = "hold d"
                 perform_action(msg)
-            elif dx <= -self.move_margin:
-                msg = "press a"
+                state.holds.append("d")
+            elif "d" in state.holds and not dx >= self.move_margin:
+                state.holds.remove("d")
+                msg = "release d"
+                perform_action(msg)
+
+            elif dx <= -self.move_margin and "a" not in state.holds:
+                msg = "hold a"
+                perform_action(msg)
+                state.holds.append("a")
+            elif "a" in state.holds and not dx <= -self.move_margin:
+                state.holds.remove("a")
+                msg = "release a"
                 perform_action(msg)
 
     def run_detection(self, frame):
