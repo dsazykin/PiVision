@@ -7,8 +7,11 @@ import time
 import os
 import json
 from pathlib import Path
-import pyautogui
 
+import pyautogui
+import pydirectinput
+
+from Device.ConnectionSoftware import SCROLL_AMOUNT
 from Pi.webserver.config.paths import PROJECT_ROOT
 
 def get_config_path():
@@ -85,18 +88,25 @@ def save_json(settings):
 active_mouse_holds = {}
 active_key_holds = {}
 
+
 def continuous_scroll(direction):
     """Scroll continuously while held."""
+    """SCROLL AMOUNT IS NOT IMPLEMENT YET, SHOULD BE A PARAMETER IN THE SCROLL FUNCTION"""
     while active_mouse_holds.get(direction, False):
         if direction == "scroll_up":
-            pyautogui.scroll(SCROLL_AMOUNT)
+            pydirectinput.scroll(clicks=1, wheel_delta=SCROLL_AMOUNT)
+            #pyautogui.scroll(SCROLL_AMOUNT)
         elif direction == "scroll_down":
-            pyautogui.scroll(-SCROLL_AMOUNT)
+            pydirectinput.scroll(clicks=-1, wheel_delta=SCROLL_AMOUNT)
+            #pyautogui.scroll(-SCROLL_AMOUNT)
         time.sleep(MOVE_INTERVAL)
+
 
 def move_mouse(distance_x: int, distance_y: int):
     """One-time mouse move for per frame movements."""
-    pyautogui.moveRel(distance_x, distance_y)
+    #pyautogui.moveRel(distance_x, distance_y)
+    pydirectinput.moveRel(distance_x, distance_y)
+
 
 def perform_action(msg):
     parts = msg.strip().split(" ", 3)
@@ -128,18 +138,22 @@ def perform_action(msg):
                 active_mouse_holds[key] = False
                 print(f"Stopped continuous {key}")
             elif command == "press":
-                pyautogui.scroll(SCROLL_AMOUNT if key == "scroll_up" else -SCROLL_AMOUNT)
+                pydirectinput.scroll(1 if key == "scroll_up" else -1)
+                #pyautogui.scroll(SCROLL_AMOUNT if key == "scroll_up" else -SCROLL_AMOUNT)
             return
 
         if key in ["left_click", "right_click"]:
             button = key.replace("_click", "")
             if command == "press":
-                pyautogui.click(button=button)
+                pydirectinput.click(button=button)
+                #pyautogui.click(button=button)
             elif command == "hold":
-                pyautogui.mouseDown(button=button)
+                pydirectinput.mouseDown(button=button)
+                #pyautogui.mouseDown(button=button)
                 print(f"Holding {button} click")
             elif command == "release":
-                pyautogui.mouseUp(button=button)
+                pydirectinput.mouseUp(button=button)
+                #pyautogui.mouseUp(button=button)
                 print(f"Released {button} click")
             return
 
@@ -149,21 +163,25 @@ def perform_action(msg):
     try:
         if command == "press":
             if len(keys) > 1:
-                pyautogui.hotkey(*keys)
+                pydirectinput.hotkey(*keys)
+                #pyautogui.hotkey(*keys)
             else:
-                pyautogui.press(keys[0])
+                pydirectinput.press(keys[0])
+                #pyautogui.press(keys[0])
 
         elif command == "hold":
             for k in keys:
                 if not active_key_holds.get(k, False):
-                    pyautogui.keyDown(k)
+                    pydirectinput.keyDown(k)
+                    #pyautogui.keyDown(k)
                     active_key_holds[k] = True
             print(f"Holding {'+'.join(keys)}")
 
         elif command == "release":
             for k in reversed(keys):
                 if active_key_holds.get(k, False):
-                    pyautogui.keyUp(k)
+                    pydirectinput.keyUp(k)
+                    #pyautogui.keyUp(k)
                     active_key_holds[k] = False
             print(f"Released {'+'.join(keys)}")
 
@@ -173,6 +191,7 @@ def perform_action(msg):
     except Exception as e:
         print(f"Error performing action '{msg}': {e}")
 
+
 def reset_active_holds():
     """Release any held keys or mouse actions when the connection ends."""
     for key in list(active_mouse_holds.keys()):
@@ -181,7 +200,8 @@ def reset_active_holds():
     for key, held in list(active_key_holds.items()):
         if held:
             try:
-                pyautogui.keyUp(key)
+                pydirectinput.keyUp(key)
+                #pyautogui.keyUp(key)
             except Exception as exc:
                 print(f"Error releasing key '{key}': {exc}")
         active_key_holds[key] = False
@@ -541,8 +561,7 @@ def main():
     """Main function to run the gesture detection loop."""
     user_settings = load_json()
     # Update global settings used by pyautogui functions
-    global MOVE_DISTANCE, MOVE_INTERVAL, SCROLL_AMOUNT, MOUSE_HAND
-    MOVE_DISTANCE = user_settings["MOVE_DISTANCE"]
+    global MOVE_INTERVAL, SCROLL_AMOUNT, MOUSE_HAND
     MOVE_INTERVAL = user_settings["MOVE_INTERVAL"]
     SCROLL_AMOUNT = user_settings["SCROLL_AMOUNT"]
     MOUSE_HAND = user_settings["MOUSE_HAND"]
