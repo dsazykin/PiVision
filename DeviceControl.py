@@ -27,11 +27,11 @@ CONFIG_PATH = get_config_path()
 
 # --- Constants ---
 DEFAULT_SETTINGS = {
-    "MOVE_DISTANCE": 20,
     "MOVE_INTERVAL": 0.03,
     "SCROLL_AMOUNT": 100,
     "MOUSE_SENSITIVITY": 5,
     "MIN_HOLD_FRAMES": 3,
+    "MOUSE_HAND": "right",
     "MAPPINGS": {
         "call": ["esc", "press"],
         "dislike": ["scroll_down", "hold"],
@@ -209,6 +209,7 @@ class GestureController:
         self.mappings = settings["MAPPINGS"]
         self.min_hold_frames = settings["MIN_HOLD_FRAMES"]
         self.mouse_sensitivity = settings["MOUSE_SENSITIVITY"]
+        self.mouse_hand = settings["MOUSE_HAND"]
 
         # Model setup
         available_providers = ort.get_available_providers()
@@ -339,18 +340,22 @@ class GestureController:
                     action_key, action_type = self.mappings.get(label, [None, None])
 
                     # Is the user moving the mouse?
-                    if action_key == "mouse":
+                    if action_key == "mouse" and hand_label == self.mouse_hand:
                         # Move the mouse based on hand movements
                         coords = self._calculate_and_perform_mouse_move(state, hand_landmarks,
                                                                         frame.shape)
                         cv2.circle(frame, coords, 10, (255, 0, 255), cv2.FILLED)
                         state.input_sent = True # Mark input as sent to prevent double movement
                     # Is the user holding a mouse button?
-                    elif "click" in action_key and action_type == "hold":
+                    elif "click" in action_key and action_type == "hold" and hand_label == self.mouse_hand:
                         # Move the mouse based on hand movements
                         coords = self._calculate_and_perform_mouse_move(state, hand_landmarks,
                                                                         frame.shape)
                         cv2.circle(frame, coords, 10, (255, 0, 255), cv2.FILLED)
+                    # The user is using the wrong hand for mouse movements
+                    elif action_key == "mouse" or ("click" in action_key and action_type ==
+                                                   "hold") and hand_label != self.mouse_hand:
+                        state.input_sent = True  # Mark input as sent so that it is not interpreted
 
                     # Has the input been sent yet?
                     if not state.input_sent:
@@ -454,10 +459,11 @@ def main():
     """Main function to run the gesture detection loop."""
     user_settings = load_json()
     # Update global settings used by pyautogui functions
-    global MOVE_DISTANCE, MOVE_INTERVAL, SCROLL_AMOUNT
+    global MOVE_DISTANCE, MOVE_INTERVAL, SCROLL_AMOUNT, MOUSE_HAND
     MOVE_DISTANCE = user_settings["MOVE_DISTANCE"]
     MOVE_INTERVAL = user_settings["MOVE_INTERVAL"]
     SCROLL_AMOUNT = user_settings["SCROLL_AMOUNT"]
+    MOUSE_HAND = user_settings["MOUSE_HAND"]
 
     # Initialize camera
     print("Starting threaded video stream...")
