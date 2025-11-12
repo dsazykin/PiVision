@@ -32,6 +32,8 @@ DEFAULT_SETTINGS = {
     "MOUSE_SENSITIVITY": 5,
     "MIN_HOLD_FRAMES": 3,
     "MOUSE_HAND": "right",
+    "GAME_HAND": "left",
+    "MOVE_MARGIN": 30,
     "MAPPINGS": {
         "call": ["esc", "press"],
         "dislike": ["scroll_down", "hold"],
@@ -194,6 +196,7 @@ class HandState:
         self.hold_gesture = False
         self.input_sent = False
         self.prev_coords = None
+        self.game_coords = None
 
     def reset(self):
         self.previous_gesture = ""
@@ -201,6 +204,7 @@ class HandState:
         self.hold_gesture = False
         self.input_sent = False
         self.prev_coords = None
+        self.game_coords = None
 
 class GestureController:
     """Manages gesture detection, state, and action dispatching."""
@@ -210,6 +214,8 @@ class GestureController:
         self.min_hold_frames = settings["MIN_HOLD_FRAMES"]
         self.mouse_sensitivity = settings["MOUSE_SENSITIVITY"]
         self.mouse_hand = settings["MOUSE_HAND"]
+        self.game_hand = settings["GAME_HAND"]
+        self.move_margin = settings["MOVE_MARGIN"]
 
         # Model setup
         available_providers = ort.get_available_providers()
@@ -304,6 +310,39 @@ class GestureController:
 
         return (cx, cy)
 
+    def _calculate_and_perform_game_input(self, state: HandState, hand_landmarks, frame_shape):
+        """Calculates game movement based on index fingertip and performs the input."""
+        h, w, _ = frame_shape
+        # Get the coordinates of the index fingertip
+        index_finger_tip = hand_landmarks.landmark[mp.solutions.hands.HandLandmark.INDEX_FINGER_TIP]
+        cx, cy = int(index_finger_tip.x * w), int(index_finger_tip.y * h)
+
+        # Is this the first frame where the user is doing this gesture
+        if state.game_coords is None:
+            state.game_coords = cx, cy # Save the starting position for movement
+        # Starting point already exists
+        else:
+            # Calculate how far the user moved their hand
+            px, py = state.game_coords
+            dx = (cx - px)
+            dy = (cy - py)
+
+            # Has the index point moved vertically outside the margin area
+            if dy >= self.move_margin:
+                msg = "press s"
+                perform_action(msg)
+            elif dy <= -self.move_margin:
+                msg = "press w"
+                perform_action(msg)
+
+            # Has the index point moved horizontally outside the margin area
+            if dx >= self.move_margin:
+                msg = "press d"
+                perform_action(msg)
+            elif dx <= -self.move_margin:
+                msg = "press a"
+                perform_action(msg)
+
     def run_detection(self, frame):
         """Processes a single camera frame for gesture detection."""
         frame = cv2.flip(frame, 1) # Flip the camera input so that right and left is correct
@@ -356,6 +395,21 @@ class GestureController:
                     elif action_key == "mouse" or ("click" in action_key and action_type ==
                                                    "hold") and hand_label != self.mouse_hand:
                         state.input_sent = True  # Mark input as sent so that it is not interpreted
+
+                    # Is the user performing game input
+                    if action_key == "game" and hand_label == self.game_hand:
+                        # Send inputs based on hand position
+                        self._calculate_and_perform_game_input(state, hand_landmarks, frame.shape)
+
+                        # Draw a box outline with half sidelength being move_margin around game_coords
+                        if state.game_coords:
+                            gx, gy = state.game_coords
+                            cv2.rectangle(frame, (gx - self.move_margin, gy - self.move_margin), (gx + self.move_margin, gy + self.move_margin), (0, 255, 0), 2)
+
+                        state.input_sent = True # Mark input as sent to prevent double inputs
+                    # The user is using the wrong hand
+                    elif action_key == "game" and hand_label != self.game_hand:
+                        state.input_sent = True # Mark input as sent so that it is not interpreted
 
                     # Has the input been sent yet?
                     if not state.input_sent:
