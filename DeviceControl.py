@@ -414,6 +414,29 @@ def add_text(frame: np.ndarray, gesture: dict, hand_label: str):
     cv2.putText(frame, text, (x_offset, yd),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
 
+class WebcamVideoStream:
+    """A threaded wrapper for cv2.VideoCapture to improve performance."""
+    def __init__(self, src=0):
+        self.stream = cv2.VideoCapture(src)
+        # Set camera properties here
+        self.stream.set(cv2.CAP_PROP_FPS, 30)
+        self.stream.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        self.stream.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+        (self.grabbed, self.frame) = self.stream.read()
+        self.stopped = False
+
+    def start(self):
+        threading.Thread(target=self.update, args=(), daemon=True).start()
+        return self
+
+    def update(self):
+        while not self.stopped:
+            (self.grabbed, self.frame) = self.stream.read()
+
+    def read(self):
+        return self.frame
+
 def main():
     """Main function to run the gesture detection loop."""
     user_settings = load_json()
@@ -424,21 +447,20 @@ def main():
     SCROLL_AMOUNT = user_settings["SCROLL_AMOUNT"]
 
     # Initialize camera
-    cap = cv2.VideoCapture(0)
-    cap.set(cv2.CAP_PROP_FPS, 30)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+    print("Starting threaded video stream...")
+    vs = WebcamVideoStream(src=0).start()
 
-    if not cap.isOpened():
+    if not vs.stream.isOpened():
         print("Error: Could not open video stream.")
         return
 
     controller = GestureController(user_settings)
+    print("Gesture detection started. Press 'q' to quit.")
 
     while True:
         try:
-            ret, frame = cap.read()
-            if not ret:
+            frame = vs.read()
+            if frame is None:
                 print("Info: End of video stream.")
                 break
 
@@ -450,9 +472,10 @@ def main():
 
         except KeyboardInterrupt:
             print("\nStopped by user.")
-            cap.release()
-            cv2.destroyAllWindows()
-            reset_active_holds()
+            break
+    vs.stopped = True
+    cv2.destroyAllWindows()
+    reset_active_holds()
 
 if __name__ == "__main__":
     main()
