@@ -4,20 +4,12 @@ import numpy as np
 import mediapipe as mp
 import threading
 import time
-import queue
 import os
 import json
-import tkinter as tk
 from pathlib import Path
-from tkinter.scrolledtext import ScrolledText
-
 import pyautogui
 
-from Pi.webserver.config.paths import (FRAME_PATH, MAPPINGS_PATH, PROJECT_ROOT)
-from Pi.SaveJson import update_current_gesture, update_password_gesture
-from Pi.ReadJson import check_loggedin, check_entering_password, get_new_mappings
-
-log_queue = queue.Queue()
+from Pi.webserver.config.paths import PROJECT_ROOT
 
 def get_config_path():
     """Return the platform-specific path to the PiVision config file."""
@@ -33,13 +25,38 @@ def get_config_path():
 
 CONFIG_PATH = get_config_path()
 
+# --- Constants ---
+DEFAULT_SETTINGS = {
+    "MOVE_INTERVAL": 0.03,
+    "SCROLL_AMOUNT": 100,
+    "MOUSE_SENSITIVITY": 5,
+    "MIN_HOLD_FRAMES": 3,
+    "MOUSE_HAND": "right",
+    "MAPPINGS": {
+        "call": ["esc", "press"],
+        "dislike": ["scroll_down", "hold"],
+        "fist": ["delete", "press"],
+        "four": ["tab", "press"],
+        "like": ["scroll_up", "hold"],
+        "mute": ["volume_toggle", "press"],
+        "ok": ["enter", "press"],
+        "one": ["left_click", "hold"],
+        "palm": ["space", "press"],
+        "peace": ["winleft", "press"],
+        "peace_inverted": ["alt", "hold"],
+        "rock": ["w", "press"],
+        "stop": ["mouse", "move"],
+        "stop_inverted": ["game", "hold"],
+        "three": ["shift", "hold"],
+        "three2": ["left_click", "press"],
+        "two_up": ["right_click", "press"],
+        "two_up_inverted": ["ctrl", "hold"]
+    }
+}
+
 def load_json():
     """Load settings from JSON file or use defaults if missing."""
-    defaults = {
-        "MOVE_DISTANCE": 20,
-        "MOVE_INTERVAL": 0.03,
-        "SCROLL_AMOUNT": 100
-    }
+    defaults = DEFAULT_SETTINGS.copy()
 
     if os.path.exists(CONFIG_PATH):
         try:
@@ -60,32 +77,11 @@ def save_json(settings):
     except Exception as e:
         print(f"Error saving config: {e}")
 
-def log_event(message, status=None):
-    """Log a message to the console and queue it for the GUI."""
-    print(message)
-    log_queue.put((message, status))
+# --- Action Performers ---
 
-# Keep track of held states
+# Keep track of held states globally for pyautogui
 active_mouse_holds = {}
 active_key_holds = {}
-
-# Adjustable sensitivity
-MOVE_DISTANCE = 20     # pixels per step
-MOVE_INTERVAL = 0.03   # seconds between steps
-SCROLL_AMOUNT = 100    # scroll step size
-
-def continuous_mouse_move(direction):
-    """Move the mouse continuously in a given direction while held."""
-    while active_mouse_holds.get(direction, False):
-        if direction == "mouse_left":
-            pyautogui.moveRel(-MOVE_DISTANCE, 0)
-        elif direction == "mouse_right":
-            pyautogui.moveRel(MOVE_DISTANCE, 0)
-        elif direction == "mouse_up":
-            pyautogui.moveRel(0, -MOVE_DISTANCE)
-        elif direction == "mouse_down":
-            pyautogui.moveRel(0, MOVE_DISTANCE)
-        time.sleep(MOVE_INTERVAL)
 
 def continuous_scroll(direction):
     """Scroll continuously while held."""
@@ -96,21 +92,14 @@ def continuous_scroll(direction):
             pyautogui.scroll(-SCROLL_AMOUNT)
         time.sleep(MOVE_INTERVAL)
 
-def continuous_mouse_move_once(direction):
-    """One-time mouse move for press actions."""
-    if direction == "mouse_left":
-        pyautogui.moveRel(-MOVE_DISTANCE, 0)
-    elif direction == "mouse_right":
-        pyautogui.moveRel(MOVE_DISTANCE, 0)
-    elif direction == "mouse_up":
-        pyautogui.moveRel(0, -MOVE_DISTANCE)
-    elif direction == "mouse_down":
-        pyautogui.moveRel(0, MOVE_DISTANCE)
+def move_mouse(distance_x: int, distance_y: int):
+    """One-time mouse move for per frame movements."""
+    pyautogui.moveRel(distance_x, distance_y)
 
 def perform_action(msg):
-    parts = msg.strip().split(" ", 1)
-    if len(parts) != 2:
-        log_event(f"Ignoring invalid command: {msg}")
+    parts = msg.strip().split(" ", 3)
+    if len(parts) < 2:
+        print(f"Ignoring invalid command: {msg}")
         return
 
     command = parts[0].lower()
@@ -119,22 +108,11 @@ def perform_action(msg):
     # === Handle mouse inputs ===
     if key in [
         "left_click", "right_click",
-        "mouse_left", "mouse_right",
-        "mouse_up", "mouse_down",
-        "scroll_up", "scroll_down"
+        "scroll_up", "scroll_down",
+        "mouse"
     ]:
-        if key in ["mouse_left", "mouse_right", "mouse_up", "mouse_down"]:
-            # Continuous movement
-            if command == "hold":
-                if not active_mouse_holds.get(key, False):
-                    active_mouse_holds[key] = True
-                    threading.Thread(target=continuous_mouse_move, args=(key,), daemon=True).start()
-                    log_event(f"Started continuous {key}")
-            elif command == "release":
-                active_mouse_holds[key] = False
-                log_event(f"Stopped continuous {key}")
-            elif command == "press":
-                continuous_mouse_move_once(key)
+        if key == "mouse":
+            move_mouse(int(parts[2]), int(parts[3]))
             return
 
         if key in ["scroll_up", "scroll_down"]:
@@ -143,10 +121,10 @@ def perform_action(msg):
                 if not active_mouse_holds.get(key, False):
                     active_mouse_holds[key] = True
                     threading.Thread(target=continuous_scroll, args=(key,), daemon=True).start()
-                    log_event(f"Started continuous {key}")
+                    print(f"Started continuous {key}")
             elif command == "release":
                 active_mouse_holds[key] = False
-                log_event(f"Stopped continuous {key}")
+                print(f"Stopped continuous {key}")
             elif command == "press":
                 pyautogui.scroll(SCROLL_AMOUNT if key == "scroll_up" else -SCROLL_AMOUNT)
             return
@@ -157,10 +135,10 @@ def perform_action(msg):
                 pyautogui.click(button=button)
             elif command == "hold":
                 pyautogui.mouseDown(button=button)
-                log_event(f"Holding {button} click")
+                print(f"Holding {button} click")
             elif command == "release":
                 pyautogui.mouseUp(button=button)
-                log_event(f"Released {button} click")
+                print(f"Released {button} click")
             return
 
     # === Handle keyboard inputs ===
@@ -178,20 +156,20 @@ def perform_action(msg):
                 if not active_key_holds.get(k, False):
                     pyautogui.keyDown(k)
                     active_key_holds[k] = True
-            log_event(f"Holding {'+'.join(keys)}")
+            print(f"Holding {'+'.join(keys)}")
 
         elif command == "release":
             for k in reversed(keys):
                 if active_key_holds.get(k, False):
                     pyautogui.keyUp(k)
                     active_key_holds[k] = False
-            log_event(f"Released {'+'.join(keys)}")
+            print(f"Released {'+'.join(keys)}")
 
         else:
-            log_event(f"Unknown command: {command}")
+            print(f"Unknown command: {command}")
 
     except Exception as e:
-        log_event(f"Error performing action '{msg}': {e}")
+        print(f"Error performing action '{msg}': {e}")
 
 def reset_active_holds():
     """Release any held keys or mouse actions when the connection ends."""
@@ -203,95 +181,206 @@ def reset_active_holds():
             try:
                 pyautogui.keyUp(key)
             except Exception as exc:
-                log_event(f"Error releasing key '{key}': {exc}")
+                print(f"Error releasing key '{key}': {exc}")
         active_key_holds[key] = False
 
-def start_gui():
-    root = tk.Tk()
-    root.title("Laptop Server Monitor")
+# --- Gesture and State Management Classes ---
 
-    status_var = tk.StringVar(value="Starting server...")
+class HandState:
+    """Encapsulates the state of a single hand."""
+    def __init__(self):
+        self.previous_gesture = ""
+        self.frame_count = 0
+        self.hold_gesture = False
+        self.input_sent = False
+        self.prev_coords = None
 
-    # === STATUS BAR ===
-    status_label = tk.Label(root, textvariable=status_var, font=("Segoe UI", 12, "bold"))
-    status_label.pack(padx=10, pady=(10, 5), anchor="w")
+    def reset(self):
+        self.previous_gesture = ""
+        self.frame_count = 0
+        self.hold_gesture = False
+        self.input_sent = False
+        self.prev_coords = None
 
-    # === SETTINGS BUTTON ===
-    def open_settings():
-        settings_window = tk.Toplevel(root)
-        settings_window.title("Settings")
+class GestureController:
+    """Manages gesture detection, state, and action dispatching."""
+    def __init__(self, settings):
+        self.settings = settings
+        self.mappings = settings["MAPPINGS"]
+        self.min_hold_frames = settings["MIN_HOLD_FRAMES"]
+        self.mouse_sensitivity = settings["MOUSE_SENSITIVITY"]
+        self.mouse_hand = settings["MOUSE_HAND"]
 
-        tk.Label(settings_window, text="Mouse move distance (pixels):").grid(row=0, column=0, sticky="w", padx=5, pady=5)
-        move_dist_var = tk.IntVar(value=MOVE_DISTANCE)
-        tk.Entry(settings_window, textvariable=move_dist_var, width=10).grid(row=0, column=1, padx=5, pady=5)
+        # Model setup
+        available_providers = ort.get_available_providers()
+        print(f"Available ONNX Providers: {available_providers}")
+        provider = "CPUExecutionProvider" # Default
+        if "DmlExecutionProvider" in available_providers:
+            provider = "DmlExecutionProvider"
+            print("Using DirectML Execution Provider (GPU).")
+        elif "CUDAExecutionProvider" in available_providers:
+            provider = "CUDAExecutionProvider"
+            print("Using CUDA Execution Provider (NVIDIA GPU).")
+        else:
+            print("Using CPU Execution Provider.")
 
-        tk.Label(settings_window, text="Move interval (seconds):").grid(row=1, column=0, sticky="w", padx=5, pady=5)
-        move_interval_var = tk.DoubleVar(value=MOVE_INTERVAL)
-        tk.Entry(settings_window, textvariable=move_interval_var, width=10).grid(row=1, column=1, padx=5, pady=5)
+        model_path = os.path.join(PROJECT_ROOT, "Models", "gesture_model_v4_handcrop.onnx")
+        self.session = ort.InferenceSession(model_path, providers=[provider])
+        self.input_name = self.session.get_inputs()[0].name
+        self.classes = [
+            'call', 'dislike', 'fist', 'four', 'like', 'mute', 'ok', 'one',
+            'palm', 'peace', 'peace_inverted', 'rock', 'stop', 'stop_inverted',
+            'three', 'three2', 'two_up', 'two_up_inverted'
+        ]
 
-        tk.Label(settings_window, text="Scroll amount (pixels per step):").grid(row=2, column=0, sticky="w", padx=5, pady=5)
-        scroll_amount_var = tk.IntVar(value=SCROLL_AMOUNT)
-        tk.Entry(settings_window, textvariable=scroll_amount_var, width=10).grid(row=2, column=1, padx=5, pady=5)
+        # Mediapipe setup
+        self.mp_hands = mp.solutions.hands.Hands(
+            model_complexity=0,  # Use the lighter-weight model (0) instead of the default (1)
+            max_num_hands=2,
+            min_detection_confidence=0.75,
+            min_tracking_confidence=0.75
+        )
+        self.mp_draw = mp.solutions.drawing_utils
 
-        def save_settings():
-            global MOVE_DISTANCE, MOVE_INTERVAL, SCROLL_AMOUNT
-            MOVE_DISTANCE = move_dist_var.get()
-            MOVE_INTERVAL = move_interval_var.get()
-            SCROLL_AMOUNT = scroll_amount_var.get()
+        # State tracking for each hand
+        self.hand_states = {'left': HandState(), 'right': HandState()}
 
-            # Save persistently
-            save_json({
-                "MOVE_DISTANCE": MOVE_DISTANCE,
-                "MOVE_INTERVAL": MOVE_INTERVAL,
-                "SCROLL_AMOUNT": SCROLL_AMOUNT
-            })
+    def process_frame(self, frame: np.ndarray, hand_landmarks) -> str:
+        """Process the frame and then pass it through ML model to detect gesture."""
+        h, w, _ = frame.shape
+        # Find the coordinates of all plotted hand points
+        xs = [int(p.x * w) for p in hand_landmarks.landmark]
+        ys = [int(p.y * h) for p in hand_landmarks.landmark]
+        margin = 30
 
-            log_event(
-                f"Settings updated and saved: MOVE_DISTANCE={MOVE_DISTANCE}, MOVE_INTERVAL={MOVE_INTERVAL}, SCROLL_AMOUNT={SCROLL_AMOUNT}")
-            settings_window.destroy()
+        # Crop the image around the hand to feed into the ML model
+        x1, y1 = max(min(xs) - margin, 0), max(min(ys) - margin, 0)
+        x2, y2 = min(max(xs) + margin, w), min(max(ys) + margin, h)
+        hand_img = frame[y1:y2, x1:x2]
 
-        tk.Button(settings_window, text="Save", command=save_settings).grid(row=3, column=0, columnspan=2, pady=10)
+        # Double check that the cropped image is valid
+        if hand_img.size == 0:
+            return "none"
 
-    tk.Button(root, text="⚙ Settings", command=open_settings).pack(padx=10, pady=(0, 10), anchor="e")
+        # Preprocess the image before passing into ML model
+        img = cv2.resize(hand_img, (224, 224))
+        img = img.astype(np.float32) / 255.0
+        img = (img - [0.485, 0.456, 0.406]) / [0.229, 0.224, 0.225]
+        img = np.transpose(img, (2, 0, 1))[np.newaxis, :].astype(np.float32)
 
-    # === LOG WINDOW ===
-    log_frame = tk.Frame(root)
-    log_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+        # Pass the image into the model and get the output
+        outputs = self.session.run(None, {self.input_name: img})
+        pred_idx = np.argmax(outputs[0])
+        label = self.classes[pred_idx]
 
-    log_text = ScrolledText(log_frame, wrap=tk.WORD, height=20, state=tk.DISABLED)
-    log_text.pack(fill=tk.BOTH, expand=True)
+        # Return the detected gesture
+        return label
 
-    # === QUEUE PROCESSING ===
-    def process_queue():
-        while True:
-            try:
-                message, status = log_queue.get_nowait()
-            except queue.Empty:
-                break
+    def _handle_gesture_change(self, state: HandState):
+        """Handle logic when a gesture changes."""
+        if state.input_sent and self.mappings.get(state.previous_gesture, ["", ""])[1] == "hold":
+            msg = f"release {self.mappings[state.previous_gesture][0]}"
+            perform_action(msg)
+        state.reset()
 
-            log_text.configure(state=tk.NORMAL)
-            log_text.insert(tk.END, message + "\n")
-            log_text.configure(state=tk.DISABLED)
-            log_text.see(tk.END)
+    def _calculate_and_perform_mouse_move(self, state: HandState, hand_landmarks, frame_shape):
+        """Calculates mouse movement based on index fingertip and performs the move."""
+        h, w, _ = frame_shape
+        # Get the coordinates of the index fingertip
+        index_finger_tip = hand_landmarks.landmark[mp.solutions.hands.HandLandmark.INDEX_FINGER_TIP]
+        cx, cy = int(index_finger_tip.x * w), int(index_finger_tip.y * h)
 
-            if status:
-                status_var.set(status)
+        # If the hand moved
+        if state.prev_coords:
+            px, py = state.prev_coords
+            dx = (cx - px) * self.mouse_sensitivity
+            dy = (cy - py) * self.mouse_sensitivity
+            if dx != 0 or dy != 0:
+                msg = f"press mouse {dx} {dy}"
+                perform_action(msg)
 
-        root.after(100, process_queue)
+        # Update the stored coords to ensure correct calculation in the next frame
+        state.prev_coords = (cx, cy)
 
-    def on_close():
-        root.destroy()
+        return (cx, cy)
 
-    root.protocol("WM_DELETE_WINDOW", on_close)
-    root.after(100, process_queue)
-    root.mainloop()
+    def run_detection(self, frame):
+        """Processes a single camera frame for gesture detection."""
+        frame = cv2.flip(frame, 1) # Flip the camera input so that right and left is correct
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = self.mp_hands.process(rgb_frame) # Find the hands in the frame
 
-# --------------- MODEL SETUP ----------------
-model_path = os.path.join(PROJECT_ROOT, "Models", "gesture_model_v4_handcrop.onnx")
+        detected_hands = set()
+        # If there is a hand in frame
+        if results.multi_hand_landmarks:
+            # Loop through detected hands to recognise gesture
+            for idx, hand_landmarks in enumerate(results.multi_hand_landmarks):
+                # Get the hand that is being processed
+                hand_label = results.multi_handedness[idx].classification[0].label.lower()
+                detected_hands.add(hand_label)
+                state = self.hand_states[hand_label]
 
-session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
-input_name = session.get_inputs()[0].name
+                # Pass the frame through the ML model to get the performed gesture and probability
+                label = self.process_frame(frame, hand_landmarks)
 
+                # Is the currently detected gesture different from the one in the previous frame
+                # for this hand?
+                if label != state.previous_gesture:
+                    self._handle_gesture_change(state)
+                    state.previous_gesture = label
+
+                # Has the gesture been held for a sufficient amount or is it still being held?
+                if state.frame_count >= self.min_hold_frames or state.hold_gesture:
+                    # Has the gesture just started to be held?
+                    if not state.hold_gesture:
+                        state.hold_gesture = True # Mark the gesture as held
+                        print(f"{hand_label.capitalize()} Hand Detected Gesture: {label}")
+
+                    # Get the input mapped to this gesture
+                    action_key, action_type = self.mappings.get(label, [None, None])
+
+                    # Is the user moving the mouse?
+                    if action_key == "mouse" and hand_label == self.mouse_hand:
+                        # Move the mouse based on hand movements
+                        coords = self._calculate_and_perform_mouse_move(state, hand_landmarks,
+                                                                        frame.shape)
+                        cv2.circle(frame, coords, 10, (255, 0, 255), cv2.FILLED)
+                        state.input_sent = True # Mark input as sent to prevent double movement
+                    # Is the user holding a mouse button?
+                    elif "click" in action_key and action_type == "hold" and hand_label == self.mouse_hand:
+                        # Move the mouse based on hand movements
+                        coords = self._calculate_and_perform_mouse_move(state, hand_landmarks,
+                                                                        frame.shape)
+                        cv2.circle(frame, coords, 10, (255, 0, 255), cv2.FILLED)
+                    # The user is using the wrong hand for mouse movements
+                    elif action_key == "mouse" or ("click" in action_key and action_type ==
+                                                   "hold") and hand_label != self.mouse_hand:
+                        state.input_sent = True  # Mark input as sent so that it is not interpreted
+
+                    # Has the input been sent yet?
+                    if not state.input_sent:
+                        msg = f"{action_type} {action_key}" # Create the input message
+                        perform_action(msg)
+                        state.input_sent = True
+
+                else: # Gesture is the same, but not held long enough yet
+                    state.frame_count += 1
+
+                # Drawing
+                self.mp_draw.draw_landmarks(frame, hand_landmarks, mp.solutions.hands.HAND_CONNECTIONS)
+                data = {"gesture": label, "confidence": 0.0} # Confidence removed for performance
+                add_text(frame, data, hand_label)
+
+        # Handle hands that are no longer detected
+        for hand_label in ['left', 'right']:
+            if hand_label not in detected_hands:
+                state = self.hand_states[hand_label]
+                if state.previous_gesture:
+                    self._handle_gesture_change(state)
+
+        return frame
+
+# Default mappings if not in config
 classes = [
     'call', 'dislike', 'fist', 'four',
     'like', 'mute', 'ok', 'one',
@@ -307,170 +396,105 @@ mappings = {
     "like": ["scroll_up", "hold"],
     "mute": ["volume_toggle", "press"],
     "ok": ["enter", "press"],
-    "one": ["left_click", "press"],
+    "one": ["left_click", "hold"],
     "palm": ["space", "press"],
     "peace": ["winleft", "press"],
     "peace_inverted": ["alt", "hold"],
     "rock": ["w", "press"],
-    "stop": ["mouse_up", "hold"],
-    "stop_inverted": ["mouse_down", "hold"],
-    "three": ["mouse_right", "hold"],
-    "three2": ["mouse_left", "hold"],
+    "stop": ["mouse", "move"],
+    "stop_inverted": ["game", "hold"],
+    "three": ["shift", "hold"],
+    "three2": ["left_click", "press"],
     "two_up": ["right_click", "press"],
     "two_up_inverted": ["ctrl", "hold"]
 }
 
-# --------------- MAPPINGS UPDATE SETUP ----------------
+if "MAPPINGS" not in DEFAULT_SETTINGS or not DEFAULT_SETTINGS["MAPPINGS"]:
+    DEFAULT_SETTINGS["MAPPINGS"] = mappings
 
-# --------------- MEDIAPIPE SETUP ----------------
-cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_FPS, 30)
-mp_hands = mp.solutions.hands.Hands(max_num_hands=2,
-    min_detection_confidence=0.75, min_tracking_confidence=0.75)
-mp_draw = mp.solutions.drawing_utils
+# --- UI and Helper Functions ---
 
-previous_gesture = ""   # The detected gesture in the previous frame
-minimum_hold = 3        # How many frames the gesture has to be held in order to be valid
-frame_count = 0         # How many frames the current gesture has been held
-hold_gesture = False    # If the detected gesture is being held
+def add_text(frame: np.ndarray, gesture: dict, hand_label: str):
+    """Add text to the frame to show the most likely gesture, positioning right hand text on the right."""
+    yd, yh = 70, 30
+    if hand_label == 'right':
+        # Position right hand text on the right side of the frame
+        x_offset = frame.shape[1] - 160
+    else:
+        x_offset = 10
+    cv2.putText(frame, f"Hand: {hand_label.capitalize()}", (x_offset, yh),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2, cv2.LINE_AA)
 
-input_sent = False      # Has this gesture input already been sent to the connected device
+    # Confidence calculation was removed for performance, so we just show the gesture.
+    # If you re-enable it, you can use the old text format.
+    text = f"Gesture: {gesture.get('gesture')}"
+    # text = f"{gesture.get('gesture')}: {gesture.get('confidence', 0.0) * 100:.1f}%"
+    cv2.putText(frame, text, (x_offset, yd),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
 
-# --------------- GESTURE DETECTION METHODS ----------------
-def process_frame(frame: np.ndarray, hand_landmarks) -> tuple[str, list[tuple[str, float]]]:
-    """Process the frame and then pass it through ML model to detect gesture."""
-    h, w, _ = frame.shape # Get the dimensions of the frame
-    xs = [int(p.x * w) for p in hand_landmarks.landmark] # Get the x and y coordinates of the hand
-    ys = [int(p.y * h) for p in hand_landmarks.landmark]
-    margin = 30
-    x1 = max(min(xs) - margin, 0) # Cut out an image of the hand
-    y1 = max(min(ys) - margin, 0)
-    x2 = min(max(xs) + margin, w)
-    y2 = min(max(ys) + margin, h)
-    hand_img = frame[y1:y2, x1:x2]
+class WebcamVideoStream:
+    """A threaded wrapper for cv2.VideoCapture to improve performance."""
+    def __init__(self, src=0):
+        self.stream = cv2.VideoCapture(src)
+        # Set camera properties here
+        self.stream.set(cv2.CAP_PROP_FPS, 30)
+        self.stream.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        self.stream.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
-    # Prevent crash if crop is empty
-    if hand_img.size == 0:
-        return "none", []
+        (self.grabbed, self.frame) = self.stream.read()
+        self.stopped = False
 
-    # Preprocess for model
-    img = cv2.resize(hand_img, (224, 224))
-    img = img.astype(np.float32) / 255.0
-    img = (img - [0.485, 0.456, 0.406]) / [0.229, 0.224, 0.225]
-    img = np.transpose(img, (2, 0, 1))[np.newaxis, :].astype(np.float32)
+    def start(self):
+        threading.Thread(target=self.update, args=(), daemon=True).start()
+        return self
 
-    # Feed hand image into the ML model to detect gesture
-    outputs = session.run(None, {input_name: img})
+    def update(self):
+        while not self.stopped:
+            (self.grabbed, self.frame) = self.stream.read()
 
-    logits = outputs[0][0]  # raw model outputs
-    probs = np.exp(logits) / np.sum(np.exp(logits))  # softmax
-    top3_idx = np.argsort(probs)[-3:][::-1]  # indices of top 3 classes
-    top3 = [(classes[i], probs[i]) for i in top3_idx]
+    def read(self):
+        return self.frame
 
-    pred = np.argmax(outputs[0])
-    label = classes[pred]
-    return label, top3
-
-def add_text(frame: np.ndarray, top3: list[tuple[str, float]]):
-    """Add text to the frame to show the 3 most likely gestures."""
-    y0, dy = 40, 30
-    for rank, (cls, prob) in enumerate(top3):
-        text = f"{rank + 1}. {cls}: {prob * 100:.1f}%"
-        y = y0 + rank * dy
-        cv2.putText(frame, text, (10, y),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
-
-# --------------- MAIN LOOP ----------------
-if __name__ == "__main__":
+def main():
+    """Main function to run the gesture detection loop."""
     user_settings = load_json()
-
+    # Update global settings used by pyautogui functions
+    global MOVE_DISTANCE, MOVE_INTERVAL, SCROLL_AMOUNT, MOUSE_HAND
     MOVE_DISTANCE = user_settings["MOVE_DISTANCE"]
     MOVE_INTERVAL = user_settings["MOVE_INTERVAL"]
     SCROLL_AMOUNT = user_settings["SCROLL_AMOUNT"]
+    MOUSE_HAND = user_settings["MOUSE_HAND"]
+
+    # Initialize camera
+    print("Starting threaded video stream...")
+    vs = WebcamVideoStream(src=0).start()
+
+    if not vs.stream.isOpened():
+        print("Error: Could not open video stream.")
+        return
+
+    controller = GestureController(user_settings)
+    print("Gesture detection started. Press 'q' to quit.")
 
     while True:
         try:
-            data = {"gesture": "none", "confidence": 0.0} # Initialise the default json
-
-            ret, frame = cap.read()
-            if not ret:
+            frame = vs.read()
+            if frame is None:
+                print("Info: End of video stream.")
                 break
 
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = mp_hands.process(rgb)
+            processed_frame = controller.run_detection(frame)
 
-            if results.multi_hand_landmarks: # Is there a hand detected?
-                for hand_landmarks in results.multi_hand_landmarks:
-
-                    # Pass into the ML model to recognise gestures
-                    label, top3 = process_frame(frame, hand_landmarks)
-
-                    # If the detected gesture changed from the previous frame
-                    if label != previous_gesture:
-                        # Was the previous input sent, and was it a hold input?
-                        if input_sent and mappings.get(previous_gesture)[1] == "hold":
-                            # Send release command to device
-                            msg = "release" + " " + mappings.get(previous_gesture)[0]
-                            perform_action(msg)
-
-                        # Reset variables
-                        hold_gesture = False
-                        input_sent = False
-                        previous_gesture = label
-                        frame_count = 0
-
-                    # Has the current gesture been held long enough?
-                    if frame_count == minimum_hold or hold_gesture:
-                        hold_gesture = True
-                        frame_count = 0
-                        print("Detected Gesture: " + label)
-                        data = {"gesture": label, "confidence": float(top3[0][1])}
-
-                        # Has this input already been sent to the device?
-                        if not input_sent:
-                            msg = mappings.get(label)[1] + " " + mappings.get(label)[0]
-                            perform_action(msg)
-
-                        input_sent = True
-
-                    # Gesture hasn't changed but is still held
-                    elif label == previous_gesture:
-                        frame_count += 1
-
-                    mp_draw.draw_landmarks(frame, hand_landmarks,
-                                           mp.solutions.hands.HAND_CONNECTIONS)
-
-                    add_text(frame, top3) # Add text to the frame to show the 3 most likely gestures
-            # No hand detected in frame
-            else:
-                # Was there a hand in the previous frame?
-                if previous_gesture != "":
-                    # Was the previous input sent, and was it a hold input?
-                    if input_sent and mappings.get(previous_gesture)[1] == "hold":
-                        # Send release command to device
-                        msg = "release" + " " + mappings.get(previous_gesture)[0]
-                        perform_action(msg)
-
-                    # Reset variables
-                    hold_gesture = False
-                    input_sent = False
-                    frame_count = 0
-                    previous_gesture = ""
-
-            cv2.imwrite(FRAME_PATH, frame) # Store the frame so that the webserver can fetch it
-            update_current_gesture(data) # Store the detected gesture
-
-            time.sleep(0.05)
-
-            cv2.imshow("Gesture Detector + Classifier", frame)
+            cv2.imshow("Gesture Detector + Classifier", processed_frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
         except KeyboardInterrupt:
             print("\nStopped by user.")
-            cap.release()
-            cv2.destroyAllWindows()
-        finally:
-            empty_frame = np.zeros((480, 640, 3), dtype=np.uint8)
-            cv2.imwrite(FRAME_PATH, empty_frame)  # Clear the frame
-            update_current_gesture({"gesture": "none", "confidence": 0.0}) # Clear last detected gesture
+            break
+    vs.stopped = True
+    cv2.destroyAllWindows()
+    reset_active_holds()
+
+if __name__ == "__main__":
+    main()
