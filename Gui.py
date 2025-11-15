@@ -180,6 +180,7 @@ class MainWindow(QMainWindow):
 
     # ------------- Navigation --------------
     def start_recognition(self):
+        self.recognition.update_active_preset_display()
         self.stack.setCurrentWidget(self.recognition)
         self.recognition.start_camera()
 
@@ -345,6 +346,7 @@ class CameraThread(QThread):
 class RecognitionPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.parent_window = parent
         layout = QVBoxLayout()
 
         header = QLabel("🖐 Gesture Recognition")
@@ -362,7 +364,15 @@ class RecognitionPage(QWidget):
         layout.addWidget(self.video_label, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.gesture_label, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.stop_button, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addStretch()
+        layout.addStretch()  # Pushes the preset label to the bottom
+
+        # Preset display label
+        self.preset_label = QLabel()
+        self.preset_label.setStyleSheet("font-size: 12px; color: #888888; padding-right: 10px;")
+        self.preset_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(self.preset_label)
+
+        self.update_active_preset_display()
 
         self.setLayout(layout)
 
@@ -387,6 +397,11 @@ class RecognitionPage(QWidget):
 
     def update_gesture(self, gesture):
         self.gesture_label.setText(f"Gesture: {gesture}")
+
+    def update_active_preset_display(self):
+        """Reads the active preset from settings and updates the label."""
+        active_preset = self.parent_window.user_settings.get("active_preset", "default")
+        self.preset_label.setText(f"Active Preset: {active_preset}")
 
 # ===============================================================
 # -------------------- SETTINGS PAGE -----------------------------
