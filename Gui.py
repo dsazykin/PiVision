@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (
     QMainWindow, QStackedWidget, QApplication, QLabel, QPushButton, QVBoxLayout,
     QWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QComboBox, QHBoxLayout, QDialog,
-    QGridLayout, QMessageBox, QScrollArea, QFrame
+    QGridLayout, QMessageBox, QScrollArea, QFrame, QInputDialog
 )
 from PySide6.QtCore import Qt, QThread, Signal, QEvent
 from PySide6.QtGui import QImage, QPixmap, QKeySequence
@@ -534,7 +534,18 @@ class MappingsPage(QWidget):
         self.preset_selector.addItems(presets)
         self.preset_selector.setCurrentText(self.parent_window.user_settings.get("active_preset", presets[0]))
         self.preset_selector.currentTextChanged.connect(self.on_preset_changed)
+
+        self.new_preset_button = QPushButton("New")
+        self.new_preset_button.setStyleSheet("padding: 5px 10px; font-size: 13px;")
+        self.new_preset_button.clicked.connect(self.create_new_preset)
+
+        self.rename_preset_button = QPushButton("Rename")
+        self.rename_preset_button.setStyleSheet("padding: 5px 10px; font-size: 13px;")
+        self.rename_preset_button.clicked.connect(self.rename_current_preset)
+
         preset_layout.addWidget(self.preset_selector)
+        preset_layout.addWidget(self.new_preset_button)
+        preset_layout.addWidget(self.rename_preset_button)
         layout.addLayout(preset_layout)
 
         # Scroll area for mappings
@@ -665,6 +676,74 @@ class MappingsPage(QWidget):
         self.parent_window.user_settings["active_preset"] = preset_name
         save_user_settings(self.parent_window.user_settings)
         self.populate_from_settings()
+
+    def rename_current_preset(self):
+        """Rename the currently selected preset."""
+        current_name = self.preset_selector.currentText()
+        if not current_name:
+            QMessageBox.warning(self, "Rename Preset", "No preset selected to rename.")
+            return
+
+        if current_name == "default":
+            QMessageBox.warning(self, "Rename Preset", "The 'default' preset cannot be renamed.")
+            return
+
+        new_name, ok = QInputDialog.getText(
+            self, "Rename Preset", f"Enter a new name for '{current_name}':", text=current_name
+        )
+
+        if ok and new_name:
+            new_name = new_name.strip()
+            if not new_name:
+                QMessageBox.warning(self, "Invalid Name", "Preset name cannot be empty.")
+                return
+
+            all_presets = self.parent_window.user_settings.get("presets", {})
+            if new_name in all_presets and new_name != current_name:
+                QMessageBox.warning(self, "Name Exists", f"A preset named '{new_name}' already exists.")
+                return
+
+            # Update settings
+            all_presets[new_name] = all_presets.pop(current_name)
+            self.parent_window.user_settings["active_preset"] = new_name
+            save_user_settings(self.parent_window.user_settings)
+
+            # Update UI
+            self.preset_selector.blockSignals(True)
+            current_index = self.preset_selector.findText(current_name)
+            self.preset_selector.setItemText(current_index, new_name)
+            self.preset_selector.setCurrentText(new_name)
+            self.preset_selector.blockSignals(False)
+
+            QMessageBox.information(self, "Success", f"Preset '{current_name}' was renamed to '{new_name}'.")
+
+    def create_new_preset(self):
+        """Create a new preset by copying the default."""
+        new_name, ok = QInputDialog.getText(self, "New Preset", "Enter a name for the new preset:")
+        if ok and new_name:
+            new_name = new_name.strip()
+            if not new_name:
+                QMessageBox.warning(self, "Invalid Name", "Preset name cannot be empty.")
+                return
+
+            all_presets = self.parent_window.user_settings.get("presets", {})
+            if new_name in all_presets:
+                QMessageBox.warning(self, "Name Exists", f"A preset named '{new_name}' already exists.")
+                return
+
+            # Create new preset by copying default and save
+            all_presets[new_name] = deepcopy(DEFAULT_USER_SETTINGS["presets"]["default"])
+            self.parent_window.user_settings["active_preset"] = new_name
+            save_user_settings(self.parent_window.user_settings)
+
+            # Repopulate the dropdown and set the new preset as active
+            self.preset_selector.blockSignals(True)
+            self.preset_selector.clear()
+            self.preset_selector.addItems(list(all_presets.keys()))
+            self.preset_selector.setCurrentText(new_name)
+            self.preset_selector.blockSignals(False)
+
+            self.populate_from_settings()
 
     def display_text_for_action(self, action_key: str) -> str:
         """Make a human-friendly label for a raw action string."""
