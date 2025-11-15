@@ -74,7 +74,6 @@ def load_user_settings():
     save_user_settings(DEFAULT_USER_SETTINGS)
     return DEFAULT_USER_SETTINGS.copy()
 
-
 def save_user_settings(settings):
     """Save settings to local JSON."""
     try:
@@ -244,7 +243,6 @@ class HomePage(QWidget):
         layout.setSpacing(20)
         self.setLayout(layout)
 
-
 # ===============================================================
 # -------------------- CAMERA THREAD -----------------------------
 # ===============================================================
@@ -263,7 +261,6 @@ class CameraThread(QThread):
             self.gesture_ready.emit(gesture)
             self.frame_ready.emit(frame)
         cap.release()
-
 
 # ===============================================================
 # -------------------- RECOGNITION PAGE --------------------------
@@ -315,7 +312,6 @@ class RecognitionPage(QWidget):
     def update_gesture(self, gesture):
         self.gesture_label.setText(f"Gesture: {gesture}")
 
-
 # ===============================================================
 # -------------------- SETTINGS PAGE -----------------------------
 # ===============================================================
@@ -340,9 +336,9 @@ class SettingsPage(QWidget):
         form.addRow("Mouse Sensitivity (0.1 - 10.0):", self.mouse_sensitivity)
 
         # Scroll speed
-        self.scroll_speed = QSpinBox()
-        self.scroll_speed.setRange(10, 1000)
-        form.addRow("Scroll Speed (px, 10 - 1000):", self.scroll_speed)
+        self.scroll_amount = QSpinBox()
+        self.scroll_amount.setRange(10, 1000)
+        form.addRow("Scroll Speed (px, 10 - 1000):", self.scroll_amount)
 
         # Min hold frames
         self.min_hold_frames = QSpinBox()
@@ -353,6 +349,23 @@ class SettingsPage(QWidget):
         self.mouse_hand = QComboBox()
         self.mouse_hand.addItems(["right", "left"])
         form.addRow("Mouse Hand:", self.mouse_hand)
+
+        # Game hand
+        self.game_hand = QComboBox()
+        self.game_hand.addItems(["right", "left"])
+        form.addRow("Game Hand:", self.game_hand)
+
+        # Move Interval
+        self.move_interval = QDoubleSpinBox()
+        self.move_interval.setRange(0.001, 1)
+        self.move_interval.setSingleStep(0.01)
+        form.addRow("Move Interval (0.001 - 1.0):", self.move_interval)
+
+        # Move Margin
+        self.move_margin = QDoubleSpinBox()
+        self.move_margin.setRange(1, 100)
+        self.move_margin.setSingleStep(5)
+        form.addRow("Move Margin (1 - 100.0):", self.move_margin)
 
         # --- Buttons ---
         self.save_button = QPushButton("💾 Save Settings")
@@ -384,10 +397,13 @@ class SettingsPage(QWidget):
     def load_settings_from_json(self):
         """Read user settings and populate input widgets."""
         settings = self.parent_window.user_settings
-        self.mouse_sensitivity.setValue(settings.get("mouse_sensitivity", 5))
-        self.scroll_speed.setValue(settings.get("scroll_speed", 100))
-        self.min_hold_frames.setValue(settings.get("min_hold_frames", 3))
-        self.mouse_hand.setCurrentText(settings.get("mouse_hand", "right"))
+        self.mouse_sensitivity.setValue(settings.get("MOUSE_SENSITIVITY", 5))
+        self.scroll_amount.setValue(settings.get("SCROLL_AMOUNT", 100))
+        self.min_hold_frames.setValue(settings.get("MIN_HOLD_FRAMES", 3))
+        self.mouse_hand.setCurrentText(settings.get("MOUSE_HAND", "right"))
+        self.game_hand.setCurrentText(settings.get("GAME_HAND", "left"))
+        self.move_interval.setValue(settings.get("MOVE_INTERVAL", 0.03))
+        self.move_margin.setValue(settings.get("MOVE_MARGIN", 30))
 
     # ------------------------------
     # Save updated values to JSON
@@ -396,10 +412,13 @@ class SettingsPage(QWidget):
         """Update user_settings.json with the new values."""
         settings = self.parent_window.user_settings
 
-        settings["mouse_sensitivity"] = self.mouse_sensitivity.value()
-        settings["scroll_speed"] = self.scroll_speed.value()
-        settings["min_hold_frames"] = self.min_hold_frames.value()
-        settings["mouse_hand"] = self.mouse_hand.currentText().lower()
+        settings["MOUSE_SENSITIVITY"] = self.mouse_sensitivity.value()
+        settings["SCROLL_AMOUNT"] = self.scroll_amount.value()
+        settings["MIN_HOLD_FRAMES"] = self.min_hold_frames.value()
+        settings["MOUSE_HAND"] = self.mouse_hand.currentText().lower()
+        settings["GAME_HAND"] = self.game_hand.currentText().lower()
+        settings["MOVE_INTERVAL"] = self.move_interval.value()
+        settings["MOVE_MARGIN"] = self.move_margin.value()
 
         save_user_settings(settings)
         self.parent_window.user_settings = load_user_settings()
@@ -412,10 +431,13 @@ class SettingsPage(QWidget):
     def revert_to_default(self):
         """Reset settings to their default values."""
         default_settings = {
-            "mouse_sensitivity": 5,
-            "scroll_speed": 100,
-            "min_hold_frames": 3,
-            "mouse_hand": "right",
+            "MOVE_INTERVAL": 0.03,
+            "SCROLL_AMOUNT": 100,
+            "MOUSE_SENSITIVITY": 5,
+            "MIN_HOLD_FRAMES": 3,
+            "MOUSE_HAND": "right",
+            "GAME_HAND": "left",
+            "MOVE_MARGIN": 30,
             "gesture_mappings": {  # ensure this field stays intact
                 "Swipe Up": {"action": "scroll_up", "mode": "short"},
                 "Swipe Down": {"action": "scroll_down", "mode": "short"},
