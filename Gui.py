@@ -565,6 +565,8 @@ class MappingsPage(QWidget):
         # storage for widget refs
         self.bind_buttons = {}     # gesture -> QPushButton (shows current binding)
         self.duration_boxes = {}   # gesture -> QComboBox (press/hold)
+        self.mouse_buttons = {}    # gesture -> QPushButton
+        self.game_buttons = {}     # gesture -> QPushButton
         self.listening_gesture = None  # currently listening gesture name or None
 
         # populate UI
@@ -592,7 +594,9 @@ class MappingsPage(QWidget):
         self.grid.addWidget(QLabel("Gesture"), 0, 0)
         self.grid.addWidget(QLabel("Binding"), 0, 1)
         self.grid.addWidget(QLabel("Mode"), 0, 2)
-        self.grid.addWidget(QLabel("Info"), 0, 3)
+        self.grid.addWidget(QLabel("Quick Assign"), 0, 3, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.grid.addWidget(QLabel("Info"), 0, 5)
+
 
         # get current preset data
         preset_name = self.preset_selector.currentText()
@@ -603,8 +607,9 @@ class MappingsPage(QWidget):
         for i, g in enumerate(gestures, start=1):
             lbl = QLabel(g)
 
+            action_key, current_mode = preset_data.get(g, ["custom_key", "press"])
             # binding button (click to listen)
-            btn = QPushButton(self.display_text_for_action(preset_data.get(g, ["custom_key", "press"])[0]))
+            btn = QPushButton(self.display_text_for_action(action_key))
             btn.setToolTip("Click to change binding; then press a key or mouse button.")
             btn.clicked.connect(lambda _, gesture=g: self.start_listening_for(gesture))
             btn.setFixedWidth(220)
@@ -612,23 +617,53 @@ class MappingsPage(QWidget):
             # duration combo
             mode_combo = QComboBox()
             mode_combo.addItems(["press", "hold"])
-            current_mode = preset_data.get(g, ["", "press"])[1]
             mode_combo.setCurrentText(current_mode if current_mode in ("press", "hold") else "press")
             mode_combo.currentTextChanged.connect(lambda _, gesture=g: self.on_mode_changed(gesture))
+
+            # Stylesheet for the quick assign buttons
+            quick_assign_style = """
+                QPushButton { padding: 4px 8px; font-size: 13px; }
+                QPushButton:checked {
+                    background-color: #0078d7;
+                    border: 1px solid #005a9e;
+                }
+            """
+
+            # Quick assign buttons
+            mouse_btn = QPushButton("Mouse")
+            mouse_btn.setCheckable(True)
+            mouse_btn.setChecked(action_key == "mouse")
+            mouse_btn.setStyleSheet(quick_assign_style)
+            mouse_btn.clicked.connect(lambda _, gesture=g: self.on_quick_assign(gesture, "mouse"))
+
+            game_btn = QPushButton("Game")
+            game_btn.setCheckable(True)
+            game_btn.setChecked(action_key == "game")
+            game_btn.setStyleSheet(quick_assign_style)
+            game_btn.clicked.connect(lambda _, gesture=g: self.on_quick_assign(gesture, "game"))
+
+            quick_assign_layout = QHBoxLayout()
+            quick_assign_layout.addWidget(mouse_btn)
+            quick_assign_layout.addWidget(game_btn)
+            quick_assign_layout.setContentsMargins(0, 0, 0, 0)
 
             # info button
             info = QPushButton("🛈")
             info.setFixedWidth(60)
             info.clicked.connect(lambda _, gesture=g: self.show_info(gesture))
 
+            # Add widgets to grid
             self.grid.addWidget(lbl, i, 0)
             self.grid.addWidget(btn, i, 1)
             self.grid.addWidget(mode_combo, i, 2)
-            self.grid.addWidget(info, i, 3)
+            self.grid.addLayout(quick_assign_layout, i, 3, 1, 2)
+            self.grid.addWidget(info, i, 5)
 
             # store refs
             self.bind_buttons[g] = btn
             self.duration_boxes[g] = mode_combo
+            self.mouse_buttons[g] = mouse_btn
+            self.game_buttons[g] = game_btn
 
     # ---------------- helpers ----------------
     def on_preset_changed(self, preset_name):
@@ -647,7 +682,9 @@ class MappingsPage(QWidget):
             "right_click": "Right Click",
             "middle_click": "Middle Click",
             "scroll_up": "Scroll Up",
-            "scroll_down": "Scroll Down"
+            "scroll_down": "Scroll Down",
+            "mouse": "Mouse Control",
+            "game": "Game Control"
         }
         if ak in mapping:
             return mapping[ak]
@@ -686,6 +723,27 @@ class MappingsPage(QWidget):
             self.releaseMouse()
         except Exception:
             pass
+
+    def on_mode_changed(self, gesture_name):
+        """When press/hold changed — save mapping immediately (keep action the same)."""
+        preset = self.parent_window.user_settings.get("active_preset", "default")
+        action = self.parent_window.user_settings.get("presets", {}).get(preset, {}).get(gesture_name, ["unassigned", "press"])[0]
+        mode = self.duration_boxes[gesture_name].currentText().lower()
+        # persist
+        self.parent_window.update_gesture_mapping(gesture_name, action, mode)
+
+    def on_quick_assign(self, gesture_name, assign_type):
+        """Handle 'Mouse' or 'Game' button clicks."""
+        other_btn = self.game_buttons[gesture_name] if assign_type == "mouse" else self.mouse_buttons[gesture_name]
+        other_btn.setChecked(False)
+
+        action_key = assign_type
+        mode = self.duration_boxes[gesture_name].currentText().lower()
+        self.parent_window.update_gesture_mapping(gesture_name, action_key, mode)
+
+        btn = self.bind_buttons.get(gesture_name)
+        if btn:
+            btn.setText(self.display_text_for_action(action_key))
 
     def on_mode_changed(self, gesture_name):
         """When press/hold changed — save mapping immediately (keep action the same)."""
@@ -744,6 +802,10 @@ class MappingsPage(QWidget):
                 btn = self.bind_buttons.get(self.listening_gesture)
                 if btn:
                     btn.setText(self.display_text_for_action(action_key))
+                # Uncheck quick assign buttons
+                self.mouse_buttons[self.listening_gesture].setChecked(False)
+                self.game_buttons[self.listening_gesture].setChecked(False)
+
                 self.stop_listening()
                 return True  # consume event
             except Exception as e:
@@ -760,6 +822,10 @@ class MappingsPage(QWidget):
                 btn = self.bind_buttons.get(self.listening_gesture)
                 if btn:
                     btn.setText(self.display_text_for_action(action_key))
+                # Uncheck quick assign buttons
+                self.mouse_buttons[self.listening_gesture].setChecked(False)
+                self.game_buttons[self.listening_gesture].setChecked(False)
+
                 self.stop_listening()
                 return True
             except Exception as e:
@@ -776,6 +842,10 @@ class MappingsPage(QWidget):
                 btn = self.bind_buttons.get(self.listening_gesture)
                 if btn:
                     btn.setText(self.display_text_for_action(action_key))
+                # Uncheck quick assign buttons
+                self.mouse_buttons[self.listening_gesture].setChecked(False)
+                self.game_buttons[self.listening_gesture].setChecked(False)
+
                 self.stop_listening()
                 return True
             except Exception as e:
