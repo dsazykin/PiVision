@@ -15,11 +15,20 @@ import onnxruntime as ort
 import mediapipe as mp
 import threading
 import time
+import sys
 
 import pydirectinput
 
-from Pi.webserver.config.paths import PROJECT_ROOT
+# from Pi.webserver.config.paths import PROJECT_ROOT # This will be replaced
 
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 # ---------- User Settings Management (local to GUI) ----------
 
 DEFAULT_USER_SETTINGS = {
@@ -514,7 +523,7 @@ class GestureController:
         else:
             print("Using CPU Execution Provider.")
 
-        model_path = os.path.join(PROJECT_ROOT, "Models", "gesture_model_v4_handcrop.onnx")
+        model_path = resource_path(os.path.join("Models", "gesture_model_v4_handcrop.onnx"))
         self.session = ort.InferenceSession(model_path, providers=[provider])
         self.input_name = self.session.get_inputs()[0].name
         self.classes = [
