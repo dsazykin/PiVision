@@ -15,6 +15,7 @@ from copy import deepcopy
 # ---------- User Settings Management (local to GUI) ----------
 
 DEFAULT_USER_SETTINGS = {
+    {
     "MOVE_INTERVAL": 0.03,
     "SCROLL_AMOUNT": 100,
     "MOUSE_SENSITIVITY": 5,
@@ -22,26 +23,82 @@ DEFAULT_USER_SETTINGS = {
     "MOUSE_HAND": "right",
     "GAME_HAND": "left",
     "MOVE_MARGIN": 30,
-    "MAPPINGS": {
-        "call": ["esc", "press"],
-        "dislike": ["scroll_down", "hold"],
-        "fist": ["delete", "press"],
-        "four": ["tab", "press"],
-        "like": ["scroll_up", "hold"],
-        "mute": ["volume_toggle", "press"],
-        "ok": ["enter", "press"],
-        "one": ["left_click", "hold"],
-        "palm": ["space", "press"],
-        "peace": ["winleft", "press"],
-        "peace_inverted": ["alt", "hold"],
-        "rock": ["w", "press"],
-        "stop": ["mouse", "move"],
-        "stop_inverted": ["game", "hold"],
-        "three": ["shift", "hold"],
-        "three2": ["left_click", "press"],
-        "two_up": ["right_click", "press"],
-        "two_up_inverted": ["ctrl", "hold"]
-    }
+    "presets": {"default": {
+        "call": [
+            "esc",
+            "press"
+        ],
+        "dislike": [
+            "scroll_down",
+            "hold"
+        ],
+        "fist": [
+            "delete",
+            "press"
+        ],
+        "four": [
+            "tab",
+            "press"
+        ],
+        "like": [
+            "scroll_up",
+            "hold"
+        ],
+        "mute": [
+            "volume_toggle",
+            "press"
+        ],
+        "ok": [
+            "enter",
+            "press"
+        ],
+        "one": [
+            "left_click",
+            "hold"
+        ],
+        "palm": [
+            "space",
+            "press"
+        ],
+        "peace": [
+            "winleft",
+            "press"
+        ],
+        "peace_inverted": [
+            "alt",
+            "hold"
+        ],
+        "rock": [
+            "w",
+            "press"
+        ],
+        "stop": [
+            "mouse",
+            "move"
+        ],
+        "stop_inverted": [
+            "game",
+            "hold"
+        ],
+        "three": [
+            "shift",
+            "hold"
+        ],
+        "three2": [
+            "left_click",
+            "press"
+        ],
+        "two_up": [
+            "right_click",
+            "press"
+        ],
+        "two_up_inverted": [
+            "ctrl",
+            "hold"
+        ]
+    }},
+    "active_preset": "default"
+}
 }
 
 def get_config_path():
@@ -82,7 +139,6 @@ def save_user_settings(settings):
         print(f"[INFO] User settings saved → {SETTINGS_FILE}")
     except Exception as e:
         print(f"[ERROR] Failed to save settings: {e}")
-
 
 # ===============================================================
 # -------------------- MAIN WINDOW -------------------------------
@@ -213,7 +269,6 @@ class MainWindow(QMainWindow):
         # Save immediately
         save_user_settings(self.user_settings)
         print(f"[INFO] Updated '{gesture_name}' → {action_key}, {action_type}")
-
 
 # ===============================================================
 # -------------------- HOME PAGE --------------------------------
