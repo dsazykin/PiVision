@@ -11,3 +11,6 @@ WebServer/__pycache__
 .env
 Pi/webserver/config/__pycache__
 user_settings.json
+/build
+*.spec
+*.exe
