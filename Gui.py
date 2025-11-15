@@ -8,43 +8,55 @@ from PySide6.QtGui import QImage, QPixmap, QKeySequence
 import cv2
 import numpy as np
 import json
+import os
 from pathlib import Path
 from copy import deepcopy
 
 # ---------- User Settings Management (local to GUI) ----------
 
-SETTINGS_FILE = Path(__file__).parent / "user_settings.json"
-
 DEFAULT_USER_SETTINGS = {
-    "mouse_sensitivity": 5,
-    "scroll_speed": 100,
-    "min_hold_frames": 3,
-    "mouse_hand": "right",
-    "active_preset": "default",
-    "presets": {
-        "default": {
-            "call": ["esc", "press"],
-            "dislike": ["scroll_down", "hold"],
-            "fist": ["delete", "press"],
-            "four": ["tab", "press"],
-            "like": ["scroll_up", "hold"],
-            "mute": ["volume_toggle", "press"],
-            "ok": ["enter", "press"],
-            "one": ["left_click", "press"],
-            "palm": ["space", "press"],
-            "peace": ["winleft", "press"],
-            "peace_inverted": ["alt", "hold"],
-            "rock": ["w", "press"],
-            "stop": ["mouse_up", "hold"],
-            "stop_inverted": ["mouse_down", "hold"],
-            "three": ["mouse_right", "hold"],
-            "three2": ["mouse_left", "hold"],
-            "two_up": ["right_click", "press"],
-            "two_up_inverted": ["ctrl", "hold"]
-        }
+    "MOVE_INTERVAL": 0.03,
+    "SCROLL_AMOUNT": 100,
+    "MOUSE_SENSITIVITY": 5,
+    "MIN_HOLD_FRAMES": 3,
+    "MOUSE_HAND": "right",
+    "GAME_HAND": "left",
+    "MOVE_MARGIN": 30,
+    "MAPPINGS": {
+        "call": ["esc", "press"],
+        "dislike": ["scroll_down", "hold"],
+        "fist": ["delete", "press"],
+        "four": ["tab", "press"],
+        "like": ["scroll_up", "hold"],
+        "mute": ["volume_toggle", "press"],
+        "ok": ["enter", "press"],
+        "one": ["left_click", "hold"],
+        "palm": ["space", "press"],
+        "peace": ["winleft", "press"],
+        "peace_inverted": ["alt", "hold"],
+        "rock": ["w", "press"],
+        "stop": ["mouse", "move"],
+        "stop_inverted": ["game", "hold"],
+        "three": ["shift", "hold"],
+        "three2": ["left_click", "press"],
+        "two_up": ["right_click", "press"],
+        "two_up_inverted": ["ctrl", "hold"]
     }
 }
 
+def get_config_path():
+    """Return the platform-specific path to the PiVision config file."""
+    # Windows → AppData\Roaming\PiVision
+    # Linux/Mac → ~/.config/PiVision
+    if os.name == "nt":
+        base_dir = Path(os.getenv("APPDATA", Path.home() / "AppData" / "Roaming"))
+    else:
+        base_dir = Path.home() / ".config"
+    pivision_dir = base_dir / "PiVision"
+    pivision_dir.mkdir(parents=True, exist_ok=True)
+    return pivision_dir / "config.json"
+
+SETTINGS_FILE = get_config_path()
 
 def load_user_settings():
     """Load settings from local JSON, or create default."""
