@@ -327,8 +327,10 @@ class HomePage(QWidget):
 class CameraThread(QThread):
     frame_ready = Signal(np.ndarray)
     gesture_ready = Signal(str)
+    cap = None
 
     def run(self):
+        global cap
         cap = cv2.VideoCapture(0)
         while True:
             ret, frame = cap.read()
@@ -337,7 +339,10 @@ class CameraThread(QThread):
             gesture = "Peace"
             self.gesture_ready.emit(gesture)
             self.frame_ready.emit(frame)
-        cap.release()
+
+    def stop(self):
+        if cap is not None:
+            cap.release()
 
 # ===============================================================
 # -------------------- RECOGNITION PAGE --------------------------
@@ -385,6 +390,7 @@ class RecognitionPage(QWidget):
 
     def stop_camera(self):
         if self.thread.isRunning():
+            self.thread.stop()
             self.thread.terminate()
 
     def update_frame(self, frame):
