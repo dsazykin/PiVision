@@ -491,12 +491,6 @@ class SettingsPage(QWidget):
             "MOUSE_HAND": "right",
             "GAME_HAND": "left",
             "MOVE_MARGIN": 30,
-            "gesture_mappings": {  # ensure this field stays intact
-                "Swipe Up": {"action": "scroll_up", "mode": "short"},
-                "Swipe Down": {"action": "scroll_down", "mode": "short"},
-                "Swipe Left": {"action": "go_back", "mode": "short"},
-                "Swipe Right": {"action": "go_forward", "mode": "short"}
-            }
         }
 
         reply = QMessageBox.question(
