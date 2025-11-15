@@ -872,13 +872,16 @@ class CameraThread(QThread):
         print("Gesture detection started.")
 
         while self._is_running:
-            frame = self.vs.read()
-            if frame is None:
-                print("Info: End of video stream.")
-                break
+            try:
+                frame = self.vs.read()
+                if frame is None:
+                    print("Info: End of video stream.")
+                    break
 
-            processed_frame = controller.run_detection(frame)
-            self.frame_ready.emit(processed_frame)
+                processed_frame = controller.run_detection(frame)
+                self.frame_ready.emit(processed_frame)
+            except:
+                continue
 
         if self.vs:
             self.vs.stopped = True
@@ -905,13 +908,10 @@ class RecognitionPage(QWidget):
         self.video_label.setFixedSize(640, 480)
         self.video_label.setStyleSheet("background-color: #000000; border-radius: 10px;")
 
-        self.gesture_label = QLabel("Gesture: ...")
-        self.gesture_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.stop_button = QPushButton("⏹ Stop Recognition")
 
         layout.addWidget(header, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.video_label, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.gesture_label, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.stop_button, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addStretch()  # Pushes the preset label to the bottom
 
@@ -931,7 +931,6 @@ class RecognitionPage(QWidget):
         if not self.thread or not self.thread.isRunning():
             self.thread = CameraThread()
             self.thread.frame_ready.connect(self.update_frame)
-            self.thread.gesture_ready.connect(self.update_gesture)
             self.thread.start()
 
     def stop_camera(self):
@@ -946,9 +945,6 @@ class RecognitionPage(QWidget):
         self.video_label.setPixmap(QPixmap.fromImage(qimg).scaled(
             self.video_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
         ))
-
-    def update_gesture(self, gesture):
-        self.gesture_label.setText(f"Gesture: {gesture}")
 
     def update_active_preset_display(self):
         """Reads the active preset from settings and updates the label."""
