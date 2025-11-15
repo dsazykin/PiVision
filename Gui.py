@@ -15,7 +15,6 @@ from copy import deepcopy
 # ---------- User Settings Management (local to GUI) ----------
 
 DEFAULT_USER_SETTINGS = {
-    {
     "MOVE_INTERVAL": 0.03,
     "SCROLL_AMOUNT": 100,
     "MOUSE_SENSITIVITY": 5,
@@ -98,7 +97,6 @@ DEFAULT_USER_SETTINGS = {
         ]
     }},
     "active_preset": "default"
-}
 }
 
 def get_config_path():
@@ -515,7 +513,6 @@ class SettingsPage(QWidget):
 
         QMessageBox.information(self, "Reverted", "Settings have been reset to default values.")
 
-
 # ===============================================================
 # -------------------- MAPPINGS PAGE -----------------------------
 # ===============================================================
@@ -773,44 +770,9 @@ class MappingsPage(QWidget):
         return super().eventFilter(obj, event)
 
     def key_event_to_action(self, event):
-        """Convert a QKeyEvent into a canonical action string (e.g. 'ctrl+a', 'space', 'esc')."""
-        # modifiers
-        parts = []
-        mods = event.modifiers()
-        if mods & Qt.ControlModifier:
-            parts.append("ctrl")
-        if mods & Qt.AltModifier:
-            parts.append("alt")
-        if mods & Qt.ShiftModifier:
-            parts.append("shift")
-        if mods & Qt.MetaModifier:
-            parts.append("meta")
-
-        # get a readable key string
-        text = event.text()
-        if text and text.strip():
-            keyname = text.lower()
-        else:
-            # fallback to common special keys
-            key = event.key()
-            mapping = {
-                Qt.Key_Escape: "esc",
-                Qt.Key_Space: "space",
-                Qt.Key_Return: "enter",
-                Qt.Key_Enter: "enter",
-                Qt.Key_Backspace: "backspace",
-                Qt.Key_Tab: "tab",
-                Qt.Key_Delete: "delete",
-                Qt.Key_Left: "left",
-                Qt.Key_Right: "right",
-                Qt.Key_Up: "up",
-                Qt.Key_Down: "down",
-            }
-            keyname = mapping.get(key, QKeySequence(key).toString().lower() or f"key_{int(key)}")
-
-        if parts:
-            return "+".join(parts + [keyname])
-        return keyname
+        """Convert the key input into a mapping."""
+        key = event.key()
+        return QKeySequence(key).toString().lower() or f"key_{int(key)}"
 
     def mouse_event_to_action(self, event):
         """Convert QMouseEvent into canonical action string."""
