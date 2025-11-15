@@ -767,7 +767,31 @@ class MappingsPage(QWidget):
                 self.stop_listening()
                 return True
 
+        # capture mouse wheel events
+        if event.type() == QEvent.Wheel:
+            try:
+                action_key = self.mouse_scroll_event_to_action(event)
+                mode = self.duration_boxes[self.listening_gesture].currentText().lower()
+                self.parent_window.update_gesture_mapping(self.listening_gesture, action_key, mode)
+                btn = self.bind_buttons.get(self.listening_gesture)
+                if btn:
+                    btn.setText(self.display_text_for_action(action_key))
+                self.stop_listening()
+                return True
+            except Exception as e:
+                print("Error capturing wheel event:", e)
+                self.stop_listening()
+                return True
+
         return super().eventFilter(obj, event)
+
+    def mouse_scroll_event_to_action(self, event: QEvent) -> str:
+        delta = event.angleDelta().y()
+        if delta > 0:
+            action_key = "scroll_up"
+        else:
+            action_key = "scroll_down"
+        return action_key
 
     def key_event_to_action(self, event):
         """Convert the key input into a mapping."""
