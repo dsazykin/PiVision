@@ -1,93 +1,135 @@
-# project
+# PiVision Control: Gesture-Based Computer Interaction
 
+![PiVision Control GUI](https://place-hold.it/800x450/1e1e1e/dddddd&text=PiVision+GUI+Screenshot)
 
+**PiVision Control** is a sophisticated Python application that transforms your webcam into a powerful, gesture-based input device. It allows you to control your computer's mouse, keyboard, and applications using a customizable set of hand gestures, offering a futuristic and hands-free way to interact with your digital environment.
 
-## Getting started
+The project has evolved significantly from its original concept, transitioning from a dedicated hardware solution to a self-contained desktop application.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+---
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+## 📜 Project Evolution
 
-## Add your files
+The name "PiVision" is a nod to the project's origins. It was initially designed as a client-server system centered around a Raspberry Pi.
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+### Phase 1: The Raspberry Pi External Device (`/Pi`)
+
+The first iteration was built as a plug-and-play external gesture recognition module. The architecture was split into two main parts:
+
+1.  **The Raspberry Pi (Server)**:
+    *   A Raspberry Pi, equipped with a camera module, served as the dedicated processing unit.
+    *   The core logic resided in `Pi/DeviceControl.py`. This script captured the video feed, performed hand tracking with MediaPipe, and classified gestures using an ONNX model.
+    *   It hosted a **Flask web server** (defined in `Pi/WebServer.py` and the `Pi/webserver/` package) that provided a web-based interface for configuration. Users could connect to the Pi's local IP address to manage user accounts, customize gesture mappings, and view a live stream of the camera feed.
+    *   User data and mappings were stored in a **SQLite database** (`Pi/Database.py`).
+    *   Upon recognizing a gesture, the Pi would send the corresponding action command over a **TCP socket** to a client application running on the user's main computer.
+
+2.  **The User's Computer (Client)**:
+    *   A lightweight client application (`Device/PiVision Connection Software.exe`) would run on the user's Windows PC.
+    *   Its sole purpose was to listen for commands from the Raspberry Pi's TCP server and translate them into keyboard and mouse inputs using libraries like `pydirectinput`.
+
+This model was powerful but required dedicated hardware, network configuration, and managing two separate applications.
+
+### Phase 2: The Local Desktop Application (`/Gui.py`)
+
+To make the project more accessible and easier to use, it was refactored into a single, self-contained desktop application that runs entirely on the user's local machine.
+
+*   **All-in-One Architecture**: The `Gui.py` script is the new entry point. It uses **PySide6 (Qt for Python)** to create a modern, feature-rich graphical user interface.
+*   **No External Hardware**: The application now uses the computer's built-in or connected webcam directly, eliminating the need for a Raspberry Pi.
+*   **Integrated Logic**: The gesture recognition pipeline (MediaPipe + ONNX) from `DeviceControl.py` was integrated into a `CameraThread` within the GUI application. This allows for non-blocking video processing and a responsive user interface.
+*   **Local Configuration**: The complex Flask web server and SQLite database were replaced with a simple and portable JSON configuration file (`config.json`). This file is stored in the user's local application data directory and holds all settings and gesture mapping presets.
+*   **Direct Input**: Instead of sending commands over a network, the application now uses `pydirectinput` to execute actions directly on the host machine.
+
+This evolution transformed PiVision Control from a hardware project into a distributable software utility that anyone can run on their computer.
+
+---
+
+## ✨ Features
+
+- **Real-Time Gesture Recognition**: Utilizes a custom-trained ONNX model for fast and accurate classification of 18 different hand gestures.
+- **Advanced Hand Tracking**: Leverages Google's MediaPipe framework to detect and track up to two hands simultaneously in the video feed.
+- **Comprehensive Control Modes**:
+  - **Standard Actions**: Map gestures to single key presses (`'a'`), hotkeys (`'ctrl+c'`), and mouse clicks.
+  - **Continuous Actions**: Configure gestures to be "held" for continuous actions like scrolling, holding a key down, or dragging with the mouse.
+  - **Mouse Control Mode**: Dedicate a gesture to take full control of the mouse cursor, moving it based on your hand's position.
+  - **Game Control Mode**: Assign a gesture to a virtual joystick, translating hand movements into WASD-style inputs for gaming.
+- **Preset Management**: Create, save, rename, and switch between different sets of gesture mappings. Tailor your controls for different applications, games, or users.
+- **Fine-Tuned Settings**: A dedicated settings page in the GUI allows you to adjust mouse sensitivity, scroll speed, gesture hold duration, and more.
+- **Modern & Intuitive UI**: A clean, dark-themed interface built with PySide6 makes it easy to manage settings, customize mappings, and view the live camera feed.
+- **Hardware Acceleration**: Automatically attempts to use your GPU for faster model inference (via DirectML on Windows or CUDA on Linux/NVIDIA), with a seamless fallback to CPU.
+
+---
+
+## 🛠️ Technical Deep Dive
+
+The core of PiVision Control is a multi-stage pipeline that runs on every frame from the camera.
+
+1.  **Frame Capture**: A multi-threaded camera wrapper (`WebcamVideoStream`) captures frames from the webcam at a high frame rate without blocking the main GUI thread.
+
+2.  **Hand Detection & Tracking**: The captured frame is passed to a `GestureController` instance. It uses `mediapipe.solutions.hands` to locate and track the 3D landmarks of each hand present in the frame. The system is configured to track up to two hands, identifying them as 'left' or 'right'.
+
+3.  **Gesture Classification**:
+    *   For each detected hand, the image is cropped around the hand's bounding box.
+    *   This cropped image is pre-processed (resized to 224x224, normalized) and fed into the pre-trained ONNX model (`gesture_model_v4_handcrop.onnx`).
+    *   The **ONNX Runtime** engine performs inference to get a prediction. It intelligently selects the best execution provider available (DirectML, CUDA, or CPU) to maximize performance.
+    *   The model's output (a logit array) is converted into a probability distribution, and the gesture with the highest probability is chosen as the recognized gesture.
+
+4.  **State Management & Action Dispatching**:
+    *   The system maintains a `HandState` for each hand to prevent jitter and accidental inputs. A gesture must be held for a configurable number of frames (`MIN_HOLD_FRAMES`) before it is considered active.
+    *   When a gesture becomes active, the system looks up the corresponding action in the currently active preset from the `config.json` file.
+    *   The action is dispatched via the `perform_action` function, which uses `pydirectinput` to simulate keyboard and mouse events. This library is used for its compatibility with games and applications that might ignore inputs from other libraries.
+    *   The system correctly handles "press" (one-time) and "hold" (continuous) actions, sending `keyDown`/`mouseDown` events when a hold gesture begins and `keyUp`/`mouseUp` events when it ends.
+
+---
+
+## 📂 Project Structure
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.utwente.nl/computer-systems-project/2025-2026/students-projects/cs25-31/project.git
-git branch -M main
-git push -uf origin main
+PiVision/
+├── Device/
+│   └── PiVision Connection Software.exe  # (Legacy) Client for the Pi version
+├── Gui.py                                # Entry point for the modern Desktop GUI application
+├── Models/
+│   └── gesture_model_v4_handcrop.onnx    # The core gesture classification model
+├── Pi/                                   # (Legacy) Code for the Raspberry Pi server
+│   ├── DeviceControl.py                  # Main gesture detection script for the Pi
+│   ├── WebServer.py                      # Flask web server entry point
+│   ├── webserver/                        # Flask blueprints, routes, and logic
+│   ├── Database.py                       # SQLite database management
+│   ├── static/                           # CSS and images for the web interface
+│   └── ...
+└── README.md                             # This file
+
 ```
 
-## Integrate with your tools
+---
 
-- [ ] [Set up project integrations](https://gitlab.utwente.nl/computer-systems-project/2025-2026/students-projects/cs25-31/project/-/settings/integrations)
+## 🚀 Getting Started (Local GUI)
 
-## Collaborate with your team
+1.  **Prerequisites**:
+    *   Python 3.8+
+    *   A webcam
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+2.  **Installation**:
+    *   Clone the repository:
+        ```bash
+        git clone https://github.com/your-username/PiVisionCont.git
+        cd PiVisionCont
+        ```
+    *   Install the required Python packages. It is highly recommended to use a virtual environment.
+        ```bash
+        # You may need to create a requirements.txt file first
+        pip install opencv-python pydirectinput onnxruntime-directml mediapipe PySide6
+        ```
 
-## Test and Deploy
+3.  **Running the Application**:
+    *   Execute the `Gui.py` script:
+        ```bash
+        python Gui.py
+        ```
 
-Use the built-in continuous integration in GitLab.
+4.  **Usage**:
+    *   From the home screen, click **▶ Start Gesture Recognition**.
+    *   To customize controls, stop recognition, go back home, and navigate to the **🎮 Gesture Mappings** page.
+    *   To adjust performance and feel, visit the **⚙ Settings** page.
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Enjoy a new way of interacting with your computer!
