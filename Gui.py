@@ -788,8 +788,8 @@ class WebcamVideoStream:
         self.stream = cv2.VideoCapture(src)
         # Set camera properties here
         self.stream.set(cv2.CAP_PROP_FPS, 30)
-        self.stream.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        self.stream.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        self.stream.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        self.stream.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
         (self.grabbed, self.frame) = self.stream.read()
         self.stopped = False
@@ -843,36 +843,41 @@ def main():
 class CameraThread(QThread):
     frame_ready = Signal(np.ndarray)
     gesture_ready = Signal(str)
-    vs = None
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._is_running = True
+        self.vs = None
 
     def run(self):
-        global vs
+        self._is_running = True
         settings = load_user_settings()
 
-        vs = WebcamVideoStream(src=0).start()
+        self.vs = WebcamVideoStream(src=0).start()
 
-        if not vs.stream.isOpened():
+        if not self.vs.stream.isOpened():
             print("Error: Could not open video stream.")
             return
 
         controller = GestureController(settings)
         print("Gesture detection started.")
 
-        while True:
-            frame = vs.read()
+        while self._is_running:
+            frame = self.vs.read()
             if frame is None:
                 print("Info: End of video stream.")
                 break
 
             processed_frame = controller.run_detection(frame)
             self.frame_ready.emit(processed_frame)
-        vs.stopped = True
+
+        if self.vs:
+            self.vs.stopped = True
         reset_active_holds()
+        print("Gesture detection stopped.")
 
     def stop(self):
-        if vs is not None:
-            vs.stopped = True
-            reset_active_holds()
+        self._is_running = False
 
 # ===============================================================
 # -------------------- RECOGNITION PAGE --------------------------
@@ -911,17 +916,19 @@ class RecognitionPage(QWidget):
 
         self.setLayout(layout)
 
-        self.thread = CameraThread()
-        self.thread.frame_ready.connect(self.update_frame)
-        self.thread.gesture_ready.connect(self.update_gesture)
+        self.thread = None
 
     def start_camera(self):
-        self.thread.start()
+        if not self.thread or not self.thread.isRunning():
+            self.thread = CameraThread()
+            self.thread.frame_ready.connect(self.update_frame)
+            self.thread.gesture_ready.connect(self.update_gesture)
+            self.thread.start()
 
     def stop_camera(self):
-        if self.thread.isRunning():
+        if self.thread and self.thread.isRunning():
             self.thread.stop()
-            self.thread.terminate()
+            self.thread.wait() # Wait for the thread to finish gracefully
 
     def update_frame(self, frame):
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
