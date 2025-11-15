@@ -5,28 +5,10 @@ import mediapipe as mp
 import threading
 import time
 import os
-import json
-from pathlib import Path
 
-import pyautogui
 import pydirectinput
 
-from Device.ConnectionSoftware import SCROLL_AMOUNT
 from Pi.webserver.config.paths import PROJECT_ROOT
-
-def get_config_path():
-    """Return the platform-specific path to the PiVision config file."""
-    # Windows → AppData\Roaming\PiVision
-    # Linux/Mac → ~/.config/PiVision
-    if os.name == "nt":
-        base_dir = Path(os.getenv("APPDATA", Path.home() / "AppData" / "Roaming"))
-    else:
-        base_dir = Path.home() / ".config"
-    pivision_dir = base_dir / "PiVision"
-    pivision_dir.mkdir(parents=True, exist_ok=True)
-    return pivision_dir / "config.json"
-
-CONFIG_PATH = get_config_path()
 
 # --- Constants ---
 DEFAULT_SETTINGS = {
@@ -59,35 +41,11 @@ DEFAULT_SETTINGS = {
     }
 }
 
-def load_json():
-    """Load settings from JSON file or use defaults if missing."""
-    defaults = DEFAULT_SETTINGS.copy()
-
-    if os.path.exists(CONFIG_PATH):
-        try:
-            with open(CONFIG_PATH, "r") as f:
-                data = json.load(f)
-                defaults.update(data)
-        except Exception as e:
-            print(f"Warning: Failed to load config, using defaults: {e}")
-
-    return defaults
-
-def save_json(settings):
-    """Save settings to JSON file."""
-    try:
-        with open(CONFIG_PATH, "w") as f:
-            json.dump(settings, f, indent=4)
-        print(f"Settings saved to {CONFIG_PATH}")
-    except Exception as e:
-        print(f"Error saving config: {e}")
-
 # --- Action Performers ---
 
 # Keep track of held states globally for pyautogui
 active_mouse_holds = {}
 active_key_holds = {}
-
 
 def continuous_scroll(direction):
     """Scroll continuously while held."""
@@ -101,12 +59,10 @@ def continuous_scroll(direction):
             #pyautogui.scroll(-SCROLL_AMOUNT)
         time.sleep(MOVE_INTERVAL)
 
-
 def move_mouse(distance_x: int, distance_y: int):
     """One-time mouse move for per frame movements."""
     #pyautogui.moveRel(distance_x, distance_y)
     pydirectinput.moveRel(distance_x, distance_y)
-
 
 def perform_action(msg):
     parts = msg.strip().split(" ", 3)
@@ -190,7 +146,6 @@ def perform_action(msg):
 
     except Exception as e:
         print(f"Error performing action '{msg}': {e}")
-
 
 def reset_active_holds():
     """Release any held keys or mouse actions when the connection ends."""
@@ -559,12 +514,11 @@ class WebcamVideoStream:
 
 def main():
     """Main function to run the gesture detection loop."""
-    user_settings = load_json()
     # Update global settings used by pyautogui functions
     global MOVE_INTERVAL, SCROLL_AMOUNT, MOUSE_HAND
-    MOVE_INTERVAL = user_settings["MOVE_INTERVAL"]
-    SCROLL_AMOUNT = user_settings["SCROLL_AMOUNT"]
-    MOUSE_HAND = user_settings["MOUSE_HAND"]
+    MOVE_INTERVAL = DEFAULT_SETTINGS["MOVE_INTERVAL"]
+    SCROLL_AMOUNT = DEFAULT_SETTINGS["SCROLL_AMOUNT"]
+    MOUSE_HAND = DEFAULT_SETTINGS["MOUSE_HAND"]
 
     # Initialize camera
     print("Starting threaded video stream...")
@@ -574,7 +528,7 @@ def main():
         print("Error: Could not open video stream.")
         return
 
-    controller = GestureController(user_settings)
+    controller = GestureController(DEFAULT_SETTINGS)
     print("Gesture detection started. Press 'q' to quit.")
 
     while True:
