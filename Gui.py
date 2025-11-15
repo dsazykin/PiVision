@@ -185,6 +185,7 @@ class MainWindow(QMainWindow):
 
     def go_home(self):
         self.recognition.stop_camera()
+        self.home.update_active_preset_display()  # Update preset label
         self.stack.setCurrentWidget(self.home)
 
     def go_settings(self):
@@ -275,26 +276,48 @@ class MainWindow(QMainWindow):
 class HomePage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        layout = QVBoxLayout()
-        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.parent_window = parent
+        main_layout = QVBoxLayout()
 
+        # --- Central content ---
+        center_layout = QVBoxLayout()
+        center_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        center_layout.setSpacing(20)
+        
         title = QLabel("PiVision Control Panel")
         title.setStyleSheet("font-size: 28px; font-weight: bold; margin-bottom: 40px;")
 
         self.start_button = QPushButton("▶ Start Gesture Recognition")
         self.settings_button = QPushButton("⚙ Settings")
         self.mapping_button = QPushButton("🎮 Gesture Mappings")
-
+        
         for btn in [self.start_button, self.settings_button, self.mapping_button]:
             btn.setFixedWidth(300)
             btn.setFixedHeight(50)
 
-        layout.addWidget(title)
-        layout.addWidget(self.start_button)
-        layout.addWidget(self.settings_button)
-        layout.addWidget(self.mapping_button)
-        layout.setSpacing(20)
-        self.setLayout(layout)
+        center_layout.addWidget(title)
+        center_layout.addWidget(self.start_button)
+        center_layout.addWidget(self.settings_button)
+        center_layout.addWidget(self.mapping_button)
+
+        # --- Main layout structure ---
+        main_layout.addStretch(1)  # Pushes content down
+        main_layout.addLayout(center_layout)
+        main_layout.addStretch(1)  # Pushes preset label down
+
+        # Preset display label
+        self.preset_label = QLabel()
+        self.preset_label.setStyleSheet("font-size: 12px; color: #888888; padding-right: 10px;")
+        self.preset_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        main_layout.addWidget(self.preset_label)
+
+        self.setLayout(main_layout)
+        self.update_active_preset_display()
+
+    def update_active_preset_display(self):
+        """Reads the active preset from settings and updates the label."""
+        active_preset = self.parent_window.user_settings.get("active_preset", "default")
+        self.preset_label.setText(f"Active Preset: {active_preset}")
 
 # ===============================================================
 # -------------------- CAMERA THREAD -----------------------------
