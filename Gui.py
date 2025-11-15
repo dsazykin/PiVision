@@ -224,6 +224,12 @@ class MainWindow(QMainWindow):
             QPushButton:pressed {
                 background-color: #0078d7;
             }
+            QPushButton#DeleteButton {
+                color: #ffdddd; border-color: #9e2a2b;
+            }
+            QPushButton#DeleteButton:hover {
+                background-color: #540b0e;
+            }
 
             QComboBox, QSpinBox, QDoubleSpinBox {
                 background-color: #2b2b2b;
@@ -587,9 +593,15 @@ class MappingsPage(QWidget):
         self.rename_preset_button.setStyleSheet("padding: 5px 10px; font-size: 13px;")
         self.rename_preset_button.clicked.connect(self.rename_current_preset)
 
+        self.delete_preset_button = QPushButton("Delete")
+        self.delete_preset_button.setObjectName("DeleteButton") # For specific styling
+        self.delete_preset_button.setStyleSheet("padding: 5px 10px; font-size: 13px;")
+        self.delete_preset_button.clicked.connect(self.delete_current_preset)
+
         preset_layout.addWidget(self.preset_selector)
         preset_layout.addWidget(self.new_preset_button)
         preset_layout.addWidget(self.rename_preset_button)
+        preset_layout.addWidget(self.delete_preset_button)
         layout.addLayout(preset_layout)
 
         # Scroll area for mappings
@@ -760,6 +772,42 @@ class MappingsPage(QWidget):
             self.preset_selector.blockSignals(False)
 
             QMessageBox.information(self, "Success", f"Preset '{current_name}' was renamed to '{new_name}'.")
+
+    def delete_current_preset(self):
+        """Delete the currently selected preset."""
+        current_name = self.preset_selector.currentText()
+        if not current_name:
+            QMessageBox.warning(self, "Delete Preset", "No preset selected to delete.")
+            return
+
+        if current_name == "default":
+            QMessageBox.warning(self, "Delete Preset", "The 'default' preset cannot be deleted.")
+            return
+
+        reply = QMessageBox.question(
+            self, "Confirm Deletion",
+            f"Are you sure you want to permanently delete the preset '{current_name}'?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            all_presets = self.parent_window.user_settings.get("presets", {})
+            if current_name in all_presets:
+                del all_presets[current_name]
+
+            # Switch back to default and save
+            self.parent_window.user_settings["active_preset"] = "default"
+            save_user_settings(self.parent_window.user_settings)
+
+            # Repopulate the dropdown and set the default preset as active
+            self.preset_selector.blockSignals(True)
+            self.preset_selector.clear()
+            self.preset_selector.addItems(list(all_presets.keys()))
+            self.preset_selector.setCurrentText("default")
+            self.preset_selector.blockSignals(False)
+
+            self.populate_from_settings()
+            QMessageBox.information(self, "Success", f"Preset '{current_name}' has been deleted.")
 
     def create_new_preset(self):
         """Create a new preset by copying the default."""
