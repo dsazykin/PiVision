@@ -665,7 +665,7 @@ class MappingsPage(QWidget):
         btn = self.bind_buttons.get(gesture_name)
         if btn:
             btn.setText("Listening... (press key or click mouse)")
-            btn.setStyleSheet("background-color: #444; font-weight: bold;")
+            btn.setStyleSheet("background-color: #444; font-weight: bold; font-size: 10px;")
         # give user focus hint
         self.grabKeyboard()
         self.grabMouse()
@@ -679,7 +679,7 @@ class MappingsPage(QWidget):
             btn = self.bind_buttons.get(self.listening_gesture)
             if btn:
                 btn.setText(self.display_text_for_action(action))
-                btn.setStyleSheet("")
+                btn.setStyleSheet("background-color: #2d2d30; font-size: 15px;")
         self.listening_gesture = None
         try:
             self.releaseKeyboard()
@@ -818,7 +818,6 @@ class MappingsPage(QWidget):
             except Exception:
                 pass
         super().closeEvent(ev)
-
 
 # ===============================================================
 # -------------------- MAIN ENTRY --------------------------------
