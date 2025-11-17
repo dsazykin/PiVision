@@ -14,3 +14,6 @@ user_settings.json
 /build
 *.spec
 *.exe
+__pycache__/
+*.pyc
+*.pyo
