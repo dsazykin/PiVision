@@ -39,6 +39,12 @@ DEFAULT_USER_SETTINGS = {
     "MOUSE_HAND": "right",
     "GAME_HAND": "left",
     "MOVE_MARGIN": 30,
+    "CAMERA_WIDTH": 320,
+    "CAMERA_HEIGHT": 240,
+    "SKIP_FRAMES": 0,
+    "SHOW_LANDMARKS": True,
+    "MIN_DETECTION_CONFIDENCE": 0.5,
+    "MIN_TRACKING_CONFIDENCE": 0.5,
     "presets": {"default": {
         "call": [
             "esc",
@@ -507,6 +513,9 @@ class GestureController:
         self.mouse_hand = settings["MOUSE_HAND"]
         self.game_hand = settings["GAME_HAND"]
         self.move_margin = settings["MOVE_MARGIN"]
+        self.show_landmarks = settings.get("SHOW_LANDMARKS", True)
+        self.skip_frames = settings.get("SKIP_FRAMES", 0)
+        self.frame_counter = 0
         SCROLL_AMOUNT = settings["SCROLL_AMOUNT"]
         MOVE_INTERVAL = settings["MOVE_INTERVAL"]
 
@@ -532,17 +541,24 @@ class GestureController:
             'three', 'three2', 'two_up', 'two_up_inverted'
         ]
 
-        # Mediapipe setup
+        # Mediapipe setup - use settings for confidence thresholds
+        min_detection_conf = settings.get("MIN_DETECTION_CONFIDENCE", 0.5)
+        min_tracking_conf = settings.get("MIN_TRACKING_CONFIDENCE", 0.5)
         self.mp_hands = mp.solutions.hands.Hands(
             model_complexity=0,  # Use the lighter-weight model (0) instead of the default (1)
             max_num_hands=2,
-            min_detection_confidence=0.75,
-            min_tracking_confidence=0.75
+            min_detection_confidence=min_detection_conf,
+            min_tracking_confidence=min_tracking_conf
         )
         self.mp_draw = mp.solutions.drawing_utils
 
         # State tracking for each hand
         self.hand_states = {'left': HandState(), 'right': HandState()}
+        
+        # For FPS tracking
+        self.fps = 0
+        self.fps_start_time = time.time()
+        self.fps_frame_count = 0
 
     def process_frame(self, frame: np.ndarray, hand_landmarks) -> str:
         """Process the frame and then pass it through ML model to detect gesture."""
@@ -667,13 +683,28 @@ class GestureController:
 
     def run_detection(self, frame):
         """Processes a single camera frame for gesture detection."""
+        # Update FPS counter
+        self.fps_frame_count += 1
+        if time.time() - self.fps_start_time >= 1.0:
+            self.fps = self.fps_frame_count
+            self.fps_frame_count = 0
+            self.fps_start_time = time.time()
+        
         frame = cv2.flip(frame, 1)  # Flip the camera input so that right and left is correct
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = self.mp_hands.process(rgb_frame)  # Find the hands in the frame
+        
+        # Frame skipping optimization - only process every N+1 frames
+        self.frame_counter += 1
+        should_process = (self.frame_counter % (self.skip_frames + 1)) == 0
+        
+        if should_process:
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = self.mp_hands.process(rgb_frame)  # Find the hands in the frame
+        else:
+            results = None
 
         detected_hands = set()
-        # If there is a hand in frame
-        if results.multi_hand_landmarks:
+        # If there is a hand in frame and we processed this frame
+        if results and results.multi_hand_landmarks:
             # Loop through detected hands to recognise gesture
             for idx, hand_landmarks in enumerate(results.multi_hand_landmarks):
                 # Get the hand that is being processed
@@ -745,9 +776,10 @@ class GestureController:
                 else:  # Gesture is the same, but not held long enough yet
                     state.frame_count += 1
 
-                # Drawing
-                self.mp_draw.draw_landmarks(frame, hand_landmarks,
-                                            mp.solutions.hands.HAND_CONNECTIONS)
+                # Drawing - only draw landmarks if enabled
+                if self.show_landmarks:
+                    self.mp_draw.draw_landmarks(frame, hand_landmarks,
+                                                mp.solutions.hands.HAND_CONNECTIONS)
                 data = {"gesture": label,
                         "confidence": 0.0}  # Confidence removed for performance
                 add_text(frame, data, hand_label)
@@ -758,6 +790,10 @@ class GestureController:
                 state = self.hand_states[hand_label]
                 if state.previous_gesture:
                     self._handle_gesture_change(state)
+        
+        # Display FPS counter on frame
+        cv2.putText(frame, f"FPS: {self.fps}", (10, frame.shape[0] - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2, cv2.LINE_AA)
 
         return frame
 
@@ -793,12 +829,14 @@ def add_text(frame: np.ndarray, gesture: dict, hand_label: str):
 class WebcamVideoStream:
     """A threaded wrapper for cv2.VideoCapture to improve performance."""
 
-    def __init__(self, src=0):
+    def __init__(self, src=0, width=320, height=240):
         self.stream = cv2.VideoCapture(src)
         # Set camera properties here
         self.stream.set(cv2.CAP_PROP_FPS, 30)
-        self.stream.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        self.stream.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        self.stream.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+        self.stream.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+        # Reduce buffer size to get more recent frames
+        self.stream.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
         (self.grabbed, self.frame) = self.stream.read()
         self.stopped = False
@@ -818,9 +856,11 @@ def main():
     """Main function to run the gesture detection loop."""
     settings = load_user_settings()
 
-    # Initialize camera
+    # Initialize camera with settings-based resolution
+    cam_width = settings.get("CAMERA_WIDTH", 320)
+    cam_height = settings.get("CAMERA_HEIGHT", 240)
     print("Starting threaded video stream...")
-    vs = WebcamVideoStream(src=0).start()
+    vs = WebcamVideoStream(src=0, width=cam_width, height=cam_height).start()
 
     if not vs.stream.isOpened():
         print("Error: Could not open video stream.")
@@ -862,7 +902,10 @@ class CameraThread(QThread):
         self._is_running = True
         settings = load_user_settings()
 
-        self.vs = WebcamVideoStream(src=0).start()
+        # Get camera resolution from settings
+        cam_width = settings.get("CAMERA_WIDTH", 320)
+        cam_height = settings.get("CAMERA_HEIGHT", 240)
+        self.vs = WebcamVideoStream(src=0, width=cam_width, height=cam_height).start()
 
         if not self.vs.stream.isOpened():
             print("Error: Could not open video stream.")
@@ -943,7 +986,7 @@ class RecognitionPage(QWidget):
         h, w, ch = rgb.shape
         qimg = QImage(rgb.data, w, h, ch * w, QImage.Format_RGB888)
         self.video_label.setPixmap(QPixmap.fromImage(qimg).scaled(
-            self.video_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
+            self.video_label.size(), Qt.KeepAspectRatio, Qt.FastTransformation
         ))
 
     def update_active_preset_display(self):
@@ -1006,6 +1049,41 @@ class SettingsPage(QWidget):
         self.move_margin.setSingleStep(5)
         form.addRow("Move Margin (1 - 100.0):", self.move_margin)
 
+        # --- Performance Settings ---
+        # Camera Width
+        self.camera_width = QSpinBox()
+        self.camera_width.setRange(160, 1920)
+        self.camera_width.setSingleStep(160)
+        form.addRow("Camera Width (160 - 1920):", self.camera_width)
+        
+        # Camera Height
+        self.camera_height = QSpinBox()
+        self.camera_height.setRange(120, 1080)
+        self.camera_height.setSingleStep(120)
+        form.addRow("Camera Height (120 - 1080):", self.camera_height)
+        
+        # Frame skipping
+        self.skip_frames = QSpinBox()
+        self.skip_frames.setRange(0, 5)
+        form.addRow("Skip Frames (0 = no skip, 1 = every other):", self.skip_frames)
+        
+        # Show landmarks
+        self.show_landmarks = QComboBox()
+        self.show_landmarks.addItems(["Yes", "No"])
+        form.addRow("Show Hand Landmarks:", self.show_landmarks)
+        
+        # Detection confidence
+        self.min_detection_confidence = QDoubleSpinBox()
+        self.min_detection_confidence.setRange(0.1, 1.0)
+        self.min_detection_confidence.setSingleStep(0.05)
+        form.addRow("Min Detection Confidence (0.1 - 1.0):", self.min_detection_confidence)
+        
+        # Tracking confidence
+        self.min_tracking_confidence = QDoubleSpinBox()
+        self.min_tracking_confidence.setRange(0.1, 1.0)
+        self.min_tracking_confidence.setSingleStep(0.05)
+        form.addRow("Min Tracking Confidence (0.1 - 1.0):", self.min_tracking_confidence)
+
         # --- Buttons ---
         self.save_button = QPushButton("💾 Save Settings")
         self.revert_button = QPushButton("↩ Revert to Default")
@@ -1043,6 +1121,14 @@ class SettingsPage(QWidget):
         self.game_hand.setCurrentText(settings.get("GAME_HAND", "left"))
         self.move_interval.setValue(settings.get("MOVE_INTERVAL", 0.03))
         self.move_margin.setValue(settings.get("MOVE_MARGIN", 30))
+        
+        # Performance settings
+        self.camera_width.setValue(settings.get("CAMERA_WIDTH", 320))
+        self.camera_height.setValue(settings.get("CAMERA_HEIGHT", 240))
+        self.skip_frames.setValue(settings.get("SKIP_FRAMES", 0))
+        self.show_landmarks.setCurrentText("Yes" if settings.get("SHOW_LANDMARKS", True) else "No")
+        self.min_detection_confidence.setValue(settings.get("MIN_DETECTION_CONFIDENCE", 0.5))
+        self.min_tracking_confidence.setValue(settings.get("MIN_TRACKING_CONFIDENCE", 0.5))
 
     # ------------------------------
     # Save updated values to JSON
@@ -1058,11 +1144,19 @@ class SettingsPage(QWidget):
         settings["GAME_HAND"] = self.game_hand.currentText().lower()
         settings["MOVE_INTERVAL"] = self.move_interval.value()
         settings["MOVE_MARGIN"] = self.move_margin.value()
+        
+        # Performance settings
+        settings["CAMERA_WIDTH"] = self.camera_width.value()
+        settings["CAMERA_HEIGHT"] = self.camera_height.value()
+        settings["SKIP_FRAMES"] = self.skip_frames.value()
+        settings["SHOW_LANDMARKS"] = (self.show_landmarks.currentText() == "Yes")
+        settings["MIN_DETECTION_CONFIDENCE"] = self.min_detection_confidence.value()
+        settings["MIN_TRACKING_CONFIDENCE"] = self.min_tracking_confidence.value()
 
         save_user_settings(settings)
         self.parent_window.user_settings = load_user_settings()
 
-        QMessageBox.information(self, "Settings Saved", "Your settings were successfully saved!")
+        QMessageBox.information(self, "Settings Saved", "Your settings were successfully saved!\n\nNote: Camera resolution and performance settings will take effect when you restart gesture recognition.")
 
     # ------------------------------
     # Revert to default values
@@ -1077,6 +1171,12 @@ class SettingsPage(QWidget):
             "MOUSE_HAND": "right",
             "GAME_HAND": "left",
             "MOVE_MARGIN": 30,
+            "CAMERA_WIDTH": 320,
+            "CAMERA_HEIGHT": 240,
+            "SKIP_FRAMES": 0,
+            "SHOW_LANDMARKS": True,
+            "MIN_DETECTION_CONFIDENCE": 0.5,
+            "MIN_TRACKING_CONFIDENCE": 0.5,
         }
 
         reply = QMessageBox.question(
