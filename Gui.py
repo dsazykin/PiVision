@@ -559,6 +559,20 @@ class GestureController:
         self.fps = 0
         self.fps_start_time = time.time()
         self.fps_frame_count = 0
+        
+        # Store last valid MediaPipe results for frame skipping
+        self.last_results = None
+        
+        # Performance timing
+        self.timing_enabled = True  # Set to False to disable timing output
+        self.timing_data = {
+            'flip': 0,
+            'convert_rgb': 0,
+            'mediapipe': 0,
+            'gesture_classify': 0,
+            'drawing': 0,
+            'total': 0
+        }
 
     def process_frame(self, frame: np.ndarray, hand_landmarks) -> str:
         """Process the frame and then pass it through ML model to detect gesture."""
@@ -683,6 +697,8 @@ class GestureController:
 
     def run_detection(self, frame):
         """Processes a single camera frame for gesture detection."""
+        frame_start_time = time.time()
+        
         # Update FPS counter
         self.fps_frame_count += 1
         if time.time() - self.fps_start_time >= 1.0:
@@ -690,19 +706,36 @@ class GestureController:
             self.fps_frame_count = 0
             self.fps_start_time = time.time()
         
+        # Timing: Frame flip
+        t0 = time.time()
         frame = cv2.flip(frame, 1)  # Flip the camera input so that right and left is correct
+        self.timing_data['flip'] = time.time() - t0
         
         # Frame skipping optimization - only process every N+1 frames
         self.frame_counter += 1
         should_process = (self.frame_counter % (self.skip_frames + 1)) == 0
         
         if should_process:
+            # Timing: RGB conversion
+            t0 = time.time()
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            self.timing_data['convert_rgb'] = time.time() - t0
+            
+            # Timing: MediaPipe hand detection
+            t0 = time.time()
             results = self.mp_hands.process(rgb_frame)  # Find the hands in the frame
+            self.timing_data['mediapipe'] = time.time() - t0
+            
+            # Store the results for use in skipped frames
+            self.last_results = results
         else:
-            results = None
+            # Use the last valid results when skipping frames
+            results = self.last_results
 
         detected_hands = set()
+        gesture_classify_time = 0
+        drawing_time = 0
+        
         # If there is a hand in frame and we processed this frame
         if results and results.multi_hand_landmarks:
             # Loop through detected hands to recognise gesture
@@ -712,8 +745,11 @@ class GestureController:
                 detected_hands.add(hand_label)
                 state = self.hand_states[hand_label]
 
+                # Timing: Gesture classification
+                t0 = time.time()
                 # Pass the frame through the ML model to get the performed gesture and probability
                 label = self.process_frame(frame, hand_landmarks)
+                gesture_classify_time += time.time() - t0
 
                 # Is the currently detected gesture different from the one in the previous frame
                 # for this hand?
@@ -776,6 +812,8 @@ class GestureController:
                 else:  # Gesture is the same, but not held long enough yet
                     state.frame_count += 1
 
+                # Timing: Drawing
+                t0 = time.time()
                 # Drawing - only draw landmarks if enabled
                 if self.show_landmarks:
                     self.mp_draw.draw_landmarks(frame, hand_landmarks,
@@ -783,13 +821,33 @@ class GestureController:
                 data = {"gesture": label,
                         "confidence": 0.0}  # Confidence removed for performance
                 add_text(frame, data, hand_label)
+                drawing_time += time.time() - t0
+        
+        # Store timing data
+        self.timing_data['gesture_classify'] = gesture_classify_time
+        self.timing_data['drawing'] = drawing_time
 
-        # Handle hands that are no longer detected
-        for hand_label in ['left', 'right']:
-            if hand_label not in detected_hands:
-                state = self.hand_states[hand_label]
-                if state.previous_gesture:
-                    self._handle_gesture_change(state)
+        # Handle hands that are no longer detected (only when we actually processed a frame)
+        if should_process:
+            for hand_label in ['left', 'right']:
+                if hand_label not in detected_hands:
+                    state = self.hand_states[hand_label]
+                    if state.previous_gesture:
+                        self._handle_gesture_change(state)
+        
+        # Calculate total frame time
+        self.timing_data['total'] = time.time() - frame_start_time
+        
+        # Print timing information (only on processed frames)
+        if self.timing_enabled and should_process:
+            print(f"\n=== Frame Timing (ms) ===")
+            print(f"Flip:              {self.timing_data['flip']*1000:6.2f} ms")
+            print(f"RGB Convert:       {self.timing_data['convert_rgb']*1000:6.2f} ms")
+            print(f"MediaPipe:         {self.timing_data['mediapipe']*1000:6.2f} ms")
+            print(f"Gesture Classify:  {self.timing_data['gesture_classify']*1000:6.2f} ms")
+            print(f"Drawing:           {self.timing_data['drawing']*1000:6.2f} ms")
+            print(f"Total Frame:       {self.timing_data['total']*1000:6.2f} ms")
+            print(f"FPS: {self.fps}")
         
         # Display FPS counter on frame
         cv2.putText(frame, f"FPS: {self.fps}", (10, frame.shape[0] - 10),
