@@ -47,14 +47,15 @@ This evolution transformed PiVision Control from a hardware project into a distr
 
 - **Real-Time Gesture Recognition**: Utilizes a custom-trained ONNX model for fast and accurate classification of 18 different hand gestures.
 - **Advanced Hand Tracking**: Leverages Google's MediaPipe framework to detect and track up to two hands simultaneously in the video feed.
+- **High-Performance Optimization**: Configurable performance settings including camera resolution, frame skipping, and visual overlays to achieve optimal FPS for real-time gesture control. See [PERFORMANCE_GUIDE.md](PERFORMANCE_GUIDE.md) for details.
 - **Comprehensive Control Modes**:
   - **Standard Actions**: Map gestures to single key presses (`'a'`), hotkeys (`'ctrl+c'`), and mouse clicks.
   - **Continuous Actions**: Configure gestures to be "held" for continuous actions like scrolling, holding a key down, or dragging with the mouse.
   - **Mouse Control Mode**: Dedicate a gesture to take full control of the mouse cursor, moving it based on your hand's position.
   - **Game Control Mode**: Assign a gesture to a virtual joystick, translating hand movements into WASD-style inputs for gaming.
 - **Preset Management**: Create, save, rename, and switch between different sets of gesture mappings. Tailor your controls for different applications, games, or users.
-- **Fine-Tuned Settings**: A dedicated settings page in the GUI allows you to adjust mouse sensitivity, scroll speed, gesture hold duration, and more.
-- **Modern & Intuitive UI**: A clean, dark-themed interface built with PySide6 makes it easy to manage settings, customize mappings, and view the live camera feed.
+- **Fine-Tuned Settings**: A dedicated settings page in the GUI allows you to adjust mouse sensitivity, scroll speed, gesture hold duration, camera resolution, frame processing options, and more.
+- **Modern & Intuitive UI**: A clean, dark-themed interface built with PySide6 makes it easy to manage settings, customize mappings, and view the live camera feed with real-time FPS counter.
 - **Hardware Acceleration**: Automatically attempts to use your GPU for faster model inference (via DirectML on Windows or CUDA on Linux/NVIDIA), with a seamless fallback to CPU.
 
 ---
@@ -131,5 +132,13 @@ PiVision/
     *   From the home screen, click **▶ Start Gesture Recognition**.
     *   To customize controls, stop recognition, go back home, and navigate to the **🎮 Gesture Mappings** page.
     *   To adjust performance and feel, visit the **⚙ Settings** page.
+
+5.  **Performance Optimization**:
+    *   If you experience low FPS, visit the **⚙ Settings** page to optimize performance:
+        - Reduce camera resolution (try 320x240 or 160x120)
+        - Enable frame skipping (try 1-2 for significant FPS boost)
+        - Disable hand landmarks for cleaner feed and better performance
+        - Lower detection/tracking confidence thresholds (try 0.3-0.5)
+    *   See [PERFORMANCE_GUIDE.md](PERFORMANCE_GUIDE.md) for detailed optimization instructions and recommended settings profiles.
 
 Enjoy a new way of interacting with your computer!
