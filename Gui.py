@@ -376,7 +376,8 @@ def continuous_scroll(direction):
 def move_mouse(distance_x: int, distance_y: int):
     """One-time mouse move for per frame movements."""
     # pyautogui.moveRel(distance_x, distance_y)
-    pydirectinput.moveRel(distance_x, distance_y)
+    # Disable pause for smooth real-time mouse movement
+    pydirectinput.moveRel(distance_x, distance_y, _pause=False)
 
 def perform_action(msg):
     parts = msg.strip().split(" ", 3)
@@ -418,11 +419,13 @@ def perform_action(msg):
                 pydirectinput.click(button=button)
                 # pyautogui.click(button=button)
             elif command == "hold":
-                pydirectinput.mouseDown(button=button)
+                # Disable pause for smooth mouse button holds
+                pydirectinput.mouseDown(button=button, _pause=False)
                 # pyautogui.mouseDown(button=button)
                 print(f"Holding {button} click")
             elif command == "release":
-                pydirectinput.mouseUp(button=button)
+                # Disable pause for smooth mouse button releases
+                pydirectinput.mouseUp(button=button, _pause=False)
                 # pyautogui.mouseUp(button=button)
                 print(f"Released {button} click")
             return
@@ -442,7 +445,8 @@ def perform_action(msg):
         elif command == "hold":
             for k in keys:
                 if not active_key_holds.get(k, False):
-                    pydirectinput.keyDown(k)
+                    # Disable pause for game controls for smooth real-time response
+                    pydirectinput.keyDown(k, _pause=False)
                     # pyautogui.keyDown(k)
                     active_key_holds[k] = True
             print(f"Holding {'+'.join(keys)}")
@@ -450,7 +454,8 @@ def perform_action(msg):
         elif command == "release":
             for k in reversed(keys):
                 if active_key_holds.get(k, False):
-                    pydirectinput.keyUp(k)
+                    # Disable pause for game controls for smooth real-time response
+                    pydirectinput.keyUp(k, _pause=False)
                     # pyautogui.keyUp(k)
                     active_key_holds[k] = False
             print(f"Released {'+'.join(keys)}")
@@ -469,7 +474,8 @@ def reset_active_holds():
     for key, held in list(active_key_holds.items()):
         if held:
             try:
-                pydirectinput.keyUp(key)
+                # Disable pause for cleanup operations
+                pydirectinput.keyUp(key, _pause=False)
                 # pyautogui.keyUp(key)
             except Exception as exc:
                 print(f"Error releasing key '{key}': {exc}")
@@ -711,32 +717,26 @@ class GestureController:
         frame = cv2.flip(frame, 1)  # Flip the camera input so that right and left is correct
         self.timing_data['flip'] = time.time() - t0
         
-        # Frame skipping optimization - only process every N+1 frames
+        # Frame skipping optimization - only skip ONNX gesture classification, not MediaPipe
+        # MediaPipe must run every frame for smooth mouse/game movement
         self.frame_counter += 1
-        should_process = (self.frame_counter % (self.skip_frames + 1)) == 0
+        should_classify_gesture = (self.frame_counter % (self.skip_frames + 1)) == 0
         
-        if should_process:
-            # Timing: RGB conversion
-            t0 = time.time()
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            self.timing_data['convert_rgb'] = time.time() - t0
-            
-            # Timing: MediaPipe hand detection
-            t0 = time.time()
-            results = self.mp_hands.process(rgb_frame)  # Find the hands in the frame
-            self.timing_data['mediapipe'] = time.time() - t0
-            
-            # Store the results for use in skipped frames
-            self.last_results = results
-        else:
-            # Use the last valid results when skipping frames
-            results = self.last_results
+        # Timing: RGB conversion (always needed for MediaPipe)
+        t0 = time.time()
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        self.timing_data['convert_rgb'] = time.time() - t0
+        
+        # Timing: MediaPipe hand detection (always run for fresh hand positions)
+        t0 = time.time()
+        results = self.mp_hands.process(rgb_frame)  # Find the hands in the frame
+        self.timing_data['mediapipe'] = time.time() - t0
 
         detected_hands = set()
         gesture_classify_time = 0
         drawing_time = 0
         
-        # If there is a hand in frame and we processed this frame
+        # If there is a hand in frame
         if results and results.multi_hand_landmarks:
             # Loop through detected hands to recognise gesture
             for idx, hand_landmarks in enumerate(results.multi_hand_landmarks):
@@ -745,10 +745,17 @@ class GestureController:
                 detected_hands.add(hand_label)
                 state = self.hand_states[hand_label]
 
-                # Timing: Gesture classification
+                # Timing: Gesture classification (only on non-skipped frames)
                 t0 = time.time()
-                # Pass the frame through the ML model to get the performed gesture and probability
-                label = self.process_frame(frame, hand_landmarks)
+                # Only run expensive ONNX model on non-skipped frames
+                if should_classify_gesture:
+                    # Pass the frame through the ML model to get the performed gesture and probability
+                    label = self.process_frame(frame, hand_landmarks)
+                    # Store the classified gesture for use on skipped frames
+                    state.last_classified_gesture = label
+                else:
+                    # Reuse last classification on skipped frames
+                    label = getattr(state, 'last_classified_gesture', state.previous_gesture or 'none')
                 gesture_classify_time += time.time() - t0
 
                 # Is the currently detected gesture different from the one in the previous frame
@@ -827,19 +834,18 @@ class GestureController:
         self.timing_data['gesture_classify'] = gesture_classify_time
         self.timing_data['drawing'] = drawing_time
 
-        # Handle hands that are no longer detected (only when we actually processed a frame)
-        if should_process:
-            for hand_label in ['left', 'right']:
-                if hand_label not in detected_hands:
-                    state = self.hand_states[hand_label]
-                    if state.previous_gesture:
-                        self._handle_gesture_change(state)
+        # Handle hands that are no longer detected (now runs every frame since MediaPipe runs every frame)
+        for hand_label in ['left', 'right']:
+            if hand_label not in detected_hands:
+                state = self.hand_states[hand_label]
+                if state.previous_gesture:
+                    self._handle_gesture_change(state)
         
         # Calculate total frame time
         self.timing_data['total'] = time.time() - frame_start_time
         
-        # Print timing information (only on processed frames)
-        if self.timing_enabled and should_process:
+        # Print timing information (only on gesture classification frames)
+        if self.timing_enabled and should_classify_gesture:
             print(f"\n=== Frame Timing (ms) ===")
             print(f"Flip:              {self.timing_data['flip']*1000:6.2f} ms")
             print(f"RGB Convert:       {self.timing_data['convert_rgb']*1000:6.2f} ms")
@@ -848,6 +854,7 @@ class GestureController:
             print(f"Drawing:           {self.timing_data['drawing']*1000:6.2f} ms")
             print(f"Total Frame:       {self.timing_data['total']*1000:6.2f} ms")
             print(f"FPS: {self.fps}")
+            print(f"Note: Frame skipping now only skips gesture classification, not hand tracking")
         
         # Display FPS counter on frame
         cv2.putText(frame, f"FPS: {self.fps}", (10, frame.shape[0] - 10),
