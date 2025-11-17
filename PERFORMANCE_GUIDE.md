@@ -4,6 +4,16 @@
 
 PiVision now includes several performance optimization settings to significantly increase the FPS (frames per second) of gesture recognition. This guide explains how to use these settings to achieve the best performance for your system.
 
+## Quick Start: Test Your System
+
+Before configuring settings, run the included performance test script to see what FPS improvements are possible on your system:
+
+```bash
+python test_fps_performance.py
+```
+
+This script will test different configurations and show you the actual FPS gains you can achieve. Use the results to choose your optimal settings profile.
+
 ## Performance Settings
 
 Access these settings by clicking **⚙ Settings** from the home screen.
