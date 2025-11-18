@@ -578,6 +578,8 @@ class GestureController:
             'drawing': 0,
             'total': 0
         }
+        self.timing_data['actions'] = 0  # NEW: time spent sending OS input
+        self._action_time_accumulator = 0  # NEW: per-frame accumulator
 
         # For FPS tracking
         self.fps = 0
@@ -620,12 +622,20 @@ class GestureController:
         if self.mappings.get(state.previous_gesture, ["", ""])[0] == "game":
             for button in state.holds:
                 msg = f"release {button}"
-                perform_action(msg)
-        if state.input_sent and self.mappings.get(state.previous_gesture, ["", ""])[
-            1] == "hold":
+                self._perform_action_timed(msg)  # CHANGED: timed
+        if state.input_sent and self.mappings.get(state.previous_gesture, ["", ""])[1] == "hold":
             msg = f"release {self.mappings[state.previous_gesture][0]}"
-            perform_action(msg)
+            self._perform_action_timed(msg)  # CHANGED: timed
         state.reset()
+
+    def _perform_action_timed(self, msg: str):
+        # NEW: wraps perform_action() and accumulates time
+        print("starting timed input")
+        t0 = time.time()
+        perform_action(msg)
+        print("sent input")
+        self._action_time_accumulator += time.time() - t0
+        print("time updated")
 
     def _calculate_and_perform_mouse_move(self, state: HandState, hand_landmarks, frame_shape):
         """Calculates mouse movement based on index fingertip and performs the move."""
@@ -642,7 +652,7 @@ class GestureController:
             dy = (cy - py) * self.mouse_sensitivity
             if dx != 0 or dy != 0:
                 msg = f"press mouse {dx} {dy}"
-                perform_action(msg)
+                self._perform_action_timed(msg)  # CHANGED: timed
 
         # Update the stored coords to ensure correct calculation in the next frame
         state.prev_coords = (cx, cy)
@@ -670,44 +680,45 @@ class GestureController:
             # Has the index point moved vertically outside the margin area
             if dy >= self.move_margin and "s" not in state.holds:
                 msg = "hold s"
-                perform_action(msg)
+                self._perform_action_timed(msg)  # CHANGED: timed
                 state.holds.append("s")
             elif "s" in state.holds and not dy >= self.move_margin:
                 state.holds.remove("s")
                 msg = "release s"
-                perform_action(msg)
+                self._perform_action_timed(msg)  # CHANGED: timed
 
             elif dy <= -self.move_margin and "w" not in state.holds:
                 msg = "hold w"
-                perform_action(msg)
+                self._perform_action_timed(msg)  # CHANGED: timed
                 state.holds.append("w")
             elif "w" in state.holds and not dy <= -self.move_margin:
                 state.holds.remove("w")
                 msg = "release w"
-                perform_action(msg)
+                self._perform_action_timed(msg)  # CHANGED: timed
 
             # Has the index point moved horizontally outside the margin area
             if dx >= self.move_margin and "d" not in state.holds:
                 msg = "hold d"
-                perform_action(msg)
+                self._perform_action_timed(msg)  # CHANGED: timed
                 state.holds.append("d")
             elif "d" in state.holds and not dx >= self.move_margin:
                 state.holds.remove("d")
                 msg = "release d"
-                perform_action(msg)
+                self._perform_action_timed(msg)  # CHANGED: timed
 
             elif dx <= -self.move_margin and "a" not in state.holds:
                 msg = "hold a"
-                perform_action(msg)
+                self._perform_action_timed(msg)  # CHANGED: timed
                 state.holds.append("a")
             elif "a" in state.holds and not dx <= -self.move_margin:
                 state.holds.remove("a")
                 msg = "release a"
-                perform_action(msg)
+                self._perform_action_timed(msg)  # CHANGED: timed
 
     def run_detection(self, frame):
         """Processes a single camera frame for gesture detection."""
         frame_start_time = time.time()
+        self._action_time_accumulator = 0  # NEW: reset per frame
 
         self.fps_frame_count += 1
         if time.time() - self.fps_start_time >= 1.0:
@@ -791,8 +802,9 @@ class GestureController:
                         # Draw a box outline with half sidelength being move_margin around game_coords
                         if state.game_coords:
                             gx, gy = state.game_coords
-                            cv2.rectangle(frame, (gx - self.move_margin, gy - self.move_margin),
-                                          (gx + self.move_margin, gy + self.move_margin),
+                            cv2.rectangle(frame, (gx - int(self.move_margin),
+                                                  gy - int(self.move_margin)),
+                                          (gx + int(self.move_margin), gy + int(self.move_margin)),
                                           (0, 255, 0), 2)
 
                         state.input_sent = True  # Mark input as sent to prevent double inputs
@@ -803,9 +815,8 @@ class GestureController:
                     # Has the input been sent yet?
                     if not state.input_sent:
                         msg = f"{action_type} {action_key}"  # Create the input message
-                        perform_action(msg)
+                        self._perform_action_timed(msg)  # CHANGED: timed
                         state.input_sent = True
-
                 else:  # Gesture is the same, but not held long enough yet
                     state.frame_count += 1
 
@@ -822,6 +833,7 @@ class GestureController:
         # Store timing data
         self.timing_data['gesture_classify'] = gesture_classify_time
         self.timing_data['drawing'] = drawing_time
+        self.timing_data['actions'] = self._action_time_accumulator  # NEW
 
         # Handle hands that are no longer detected
         for hand_label in ['left', 'right']:
@@ -838,6 +850,7 @@ class GestureController:
             print(f"RGB Convert:       {self.timing_data['convert_rgb'] * 1000:6.2f} ms")
             print(f"MediaPipe:         {self.timing_data['mediapipe'] * 1000:6.2f} ms")
             print(f"Gesture Classify:  {self.timing_data['gesture_classify'] * 1000:6.2f} ms")
+            print(f"Actions:           {self.timing_data['actions'] * 1000:6.2f} ms")  # NEW
             print(f"Drawing:           {self.timing_data['drawing'] * 1000:6.2f} ms")
             print(f"Total Frame:       {self.timing_data['total'] * 1000:6.2f} ms")
             print(f"FPS: {self.fps}")
@@ -1063,7 +1076,7 @@ class SettingsPage(QWidget):
         self.move_margin = QDoubleSpinBox()
         self.move_margin.setRange(1, 100)
         self.move_margin.setSingleStep(5)
-        form.addRow("Move Margin (1 - 100.0):", self.move_margin)
+        form.addRow("Move Margin (1 - 100):", self.move_margin)
 
         # --- Buttons ---
         self.save_button = QPushButton("💾 Save Settings")
@@ -1101,7 +1114,7 @@ class SettingsPage(QWidget):
         self.mouse_hand.setCurrentText(settings.get("MOUSE_HAND", "right"))
         self.game_hand.setCurrentText(settings.get("GAME_HAND", "left"))
         self.move_interval.setValue(settings.get("MOVE_INTERVAL", 0.03))
-        self.move_margin.setValue(settings.get("MOVE_MARGIN", 30))
+        self.move_margin.setValue(int(settings.get("MOVE_MARGIN", 30)))
 
     # ------------------------------
     # Save updated values to JSON
