@@ -937,8 +937,8 @@ class CameraThread(QThread):
                 self.frame_ready.emit(processed_frame)
             except Exception:
                 print("Error during gesture detection. Full traceback:")
-                traceback.print_exc()  # NEW: prints file, line, and stack
-                break
+                traceback.print_exc()
+                continue
 
         if self.vs:
             self.vs.stopped = True
