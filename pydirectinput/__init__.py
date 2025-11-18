@@ -252,8 +252,14 @@ def _genericPyDirectInputChecks(wrappedFunction):
 
 # Helper Functions
 
+# Cache display size for performance
+_cached_display_size = None
+
 def _to_windows_coordinates(x=0, y=0):
-    display_width, display_height = size()
+    global _cached_display_size
+    if _cached_display_size is None:
+        _cached_display_size = size()
+    display_width, display_height = _cached_display_size
 
     # the +1 here prevents exactly mouse movements from sometimes ending up off by 1 pixel
     windows_x = (x * 65536) // display_width + 1
@@ -598,8 +604,8 @@ def press(keys, presses=1, interval=0.0, logScreenshot=None, _pause=True):
     for i in range(presses):
         for k in keys:
             failSafeCheck()
-            downed = keyDown(k)
-            upped = keyUp(k)
+            downed = keyDown(k, _pause=False)
+            upped = keyUp(k, _pause=False)
             # Count key press as complete if key was "downed" and "upped" successfully
             if downed and upped:
                 completedPresses += 1

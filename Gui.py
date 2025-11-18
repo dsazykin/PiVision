@@ -20,6 +20,10 @@ import traceback
 
 import pydirectinput
 
+# Disable failsafe and set PAUSE to 0 for maximum performance
+pydirectinput.FAILSAFE = False
+pydirectinput.PAUSE = 0
+
 
 # from Pi.webserver.config.paths import PROJECT_ROOT # This will be replaced
 
@@ -373,10 +377,10 @@ def continuous_scroll(direction):
     """SCROLL AMOUNT IS NOT IMPLEMENT YET, SHOULD BE A PARAMETER IN THE SCROLL FUNCTION"""
     while active_mouse_holds.get(direction, False):
         if direction == "scroll_up":
-            pydirectinput.scroll(clicks=1, wheel_delta=SCROLL_AMOUNT)
+            pydirectinput.scroll(clicks=1, wheel_delta=SCROLL_AMOUNT, _pause=False)
             # pyautogui.scroll(SCROLL_AMOUNT)
         elif direction == "scroll_down":
-            pydirectinput.scroll(clicks=-1, wheel_delta=SCROLL_AMOUNT)
+            pydirectinput.scroll(clicks=-1, wheel_delta=SCROLL_AMOUNT, _pause=False)
             # pyautogui.scroll(-SCROLL_AMOUNT)
         time.sleep(MOVE_INTERVAL)
 
@@ -384,7 +388,7 @@ def continuous_scroll(direction):
 def move_mouse(distance_x: int, distance_y: int):
     """One-time mouse move for per frame movements."""
     # pyautogui.moveRel(distance_x, distance_y)
-    pydirectinput.moveRel(distance_x, distance_y)
+    pydirectinput.moveRel(distance_x, distance_y, _pause=False, relative=True)
 
 
 def perform_action(msg):
@@ -423,21 +427,21 @@ def perform_action(msg):
                 active_mouse_holds[key] = False
                 print(f"Stopped continuous {key}")
             elif command == "press":
-                pydirectinput.scroll(1 if key == "scroll_up" else -1)
+                pydirectinput.scroll(1 if key == "scroll_up" else -1, _pause=False)
                 # pyautogui.scroll(SCROLL_AMOUNT if key == "scroll_up" else -SCROLL_AMOUNT)
             return
 
         if key in ["left_click", "right_click"]:
             button = key.replace("_click", "")
             if command == "press":
-                pydirectinput.click(button=button)
+                pydirectinput.click(button=button, _pause=False)
                 # pyautogui.click(button=button)
             elif command == "hold":
-                pydirectinput.mouseDown(button=button)
+                pydirectinput.mouseDown(button=button, _pause=False)
                 # pyautogui.mouseDown(button=button)
                 print(f"Holding {button} click")
             elif command == "release":
-                pydirectinput.mouseUp(button=button)
+                pydirectinput.mouseUp(button=button, _pause=False)
                 # pyautogui.mouseUp(button=button)
                 print(f"Released {button} click")
             return
@@ -448,16 +452,16 @@ def perform_action(msg):
     try:
         if command == "press":
             if len(keys) > 1:
-                pydirectinput.hotkey(*keys)
+                pydirectinput.hotkey(*keys, _pause=False)
                 # pyautogui.hotkey(*keys)
             else:
-                pydirectinput.press(keys[0])
+                pydirectinput.press(keys[0], _pause=False)
                 # pyautogui.press(keys[0])
 
         elif command == "hold":
             for k in keys:
                 if not active_key_holds.get(k, False):
-                    pydirectinput.keyDown(k)
+                    pydirectinput.keyDown(k, _pause=False)
                     # pyautogui.keyDown(k)
                     active_key_holds[k] = True
             print(f"Holding {'+'.join(keys)}")
@@ -465,7 +469,7 @@ def perform_action(msg):
         elif command == "release":
             for k in reversed(keys):
                 if active_key_holds.get(k, False):
-                    pydirectinput.keyUp(k)
+                    pydirectinput.keyUp(k, _pause=False)
                     # pyautogui.keyUp(k)
                     active_key_holds[k] = False
             print(f"Released {'+'.join(keys)}")
@@ -485,7 +489,7 @@ def reset_active_holds():
     for key, held in list(active_key_holds.items()):
         if held:
             try:
-                pydirectinput.keyUp(key)
+                pydirectinput.keyUp(key, _pause=False)
                 # pyautogui.keyUp(key)
             except Exception as exc:
                 print(f"Error releasing key '{key}': {exc}")
@@ -622,20 +626,18 @@ class GestureController:
         if self.mappings.get(state.previous_gesture, ["", ""])[0] == "game":
             for button in state.holds:
                 msg = f"release {button}"
-                self._perform_action_timed(msg)  # CHANGED: timed
+                #self._perform_action_timed(msg)  # CHANGED: timed
+                perform_action(msg)
         if state.input_sent and self.mappings.get(state.previous_gesture, ["", ""])[1] == "hold":
             msg = f"release {self.mappings[state.previous_gesture][0]}"
-            self._perform_action_timed(msg)  # CHANGED: timed
+            #self._perform_action_timed(msg)  # CHANGED: timed
+            perform_action(msg)
         state.reset()
 
     def _perform_action_timed(self, msg: str):
-        # NEW: wraps perform_action() and accumulates time
-        print("starting timed input")
         t0 = time.time()
         perform_action(msg)
-        print("sent input")
         self._action_time_accumulator += time.time() - t0
-        print("time updated")
 
     def _calculate_and_perform_mouse_move(self, state: HandState, hand_landmarks, frame_shape):
         """Calculates mouse movement based on index fingertip and performs the move."""
@@ -652,7 +654,8 @@ class GestureController:
             dy = (cy - py) * self.mouse_sensitivity
             if dx != 0 or dy != 0:
                 msg = f"press mouse {dx} {dy}"
-                self._perform_action_timed(msg)  # CHANGED: timed
+                #self._perform_action_timed(msg)  # CHANGED: timed
+                perform_action(msg)
 
         # Update the stored coords to ensure correct calculation in the next frame
         state.prev_coords = (cx, cy)
@@ -680,40 +683,48 @@ class GestureController:
             # Has the index point moved vertically outside the margin area
             if dy >= self.move_margin and "s" not in state.holds:
                 msg = "hold s"
-                self._perform_action_timed(msg)  # CHANGED: timed
+                #self._perform_action_timed(msg)  # CHANGED: timed
+                perform_action(msg)
                 state.holds.append("s")
             elif "s" in state.holds and not dy >= self.move_margin:
                 state.holds.remove("s")
                 msg = "release s"
-                self._perform_action_timed(msg)  # CHANGED: timed
+                #self._perform_action_timed(msg)  # CHANGED: timed
+                perform_action(msg)
 
             elif dy <= -self.move_margin and "w" not in state.holds:
                 msg = "hold w"
-                self._perform_action_timed(msg)  # CHANGED: timed
+                #self._perform_action_timed(msg)  # CHANGED: timed
+                perform_action(msg)
                 state.holds.append("w")
             elif "w" in state.holds and not dy <= -self.move_margin:
                 state.holds.remove("w")
                 msg = "release w"
-                self._perform_action_timed(msg)  # CHANGED: timed
+                #self._perform_action_timed(msg)  # CHANGED: timed
+                perform_action(msg)
 
             # Has the index point moved horizontally outside the margin area
             if dx >= self.move_margin and "d" not in state.holds:
                 msg = "hold d"
-                self._perform_action_timed(msg)  # CHANGED: timed
+                #self._perform_action_timed(msg)  # CHANGED: timed
+                perform_action(msg)
                 state.holds.append("d")
             elif "d" in state.holds and not dx >= self.move_margin:
                 state.holds.remove("d")
                 msg = "release d"
-                self._perform_action_timed(msg)  # CHANGED: timed
+                #self._perform_action_timed(msg)  # CHANGED: timed
+                perform_action(msg)
 
             elif dx <= -self.move_margin and "a" not in state.holds:
                 msg = "hold a"
-                self._perform_action_timed(msg)  # CHANGED: timed
+                #self._perform_action_timed(msg)  # CHANGED: timed
+                perform_action(msg)
                 state.holds.append("a")
             elif "a" in state.holds and not dx <= -self.move_margin:
                 state.holds.remove("a")
                 msg = "release a"
-                self._perform_action_timed(msg)  # CHANGED: timed
+                #self._perform_action_timed(msg)  # CHANGED: timed
+                perform_action(msg)
 
     def run_detection(self, frame):
         """Processes a single camera frame for gesture detection."""
@@ -815,7 +826,8 @@ class GestureController:
                     # Has the input been sent yet?
                     if not state.input_sent:
                         msg = f"{action_type} {action_key}"  # Create the input message
-                        self._perform_action_timed(msg)  # CHANGED: timed
+                        #self._perform_action_timed(msg)  # CHANGED: timed
+                        perform_action(msg)
                         state.input_sent = True
                 else:  # Gesture is the same, but not held long enough yet
                     state.frame_count += 1
@@ -844,16 +856,16 @@ class GestureController:
 
         self.timing_data['total'] = time.time() - frame_start_time
 
-        if self.timing_enabled:
-            print(f"\n=== Frame Timing (ms) ===")
-            print(f"Flip:              {self.timing_data['flip'] * 1000:6.2f} ms")
-            print(f"RGB Convert:       {self.timing_data['convert_rgb'] * 1000:6.2f} ms")
-            print(f"MediaPipe:         {self.timing_data['mediapipe'] * 1000:6.2f} ms")
-            print(f"Gesture Classify:  {self.timing_data['gesture_classify'] * 1000:6.2f} ms")
-            print(f"Actions:           {self.timing_data['actions'] * 1000:6.2f} ms")  # NEW
-            print(f"Drawing:           {self.timing_data['drawing'] * 1000:6.2f} ms")
-            print(f"Total Frame:       {self.timing_data['total'] * 1000:6.2f} ms")
-            print(f"FPS: {self.fps}")
+        # if self.timing_enabled:
+        #     print(f"\n=== Frame Timing (ms) ===")
+        #     print(f"Flip:              {self.timing_data['flip'] * 1000:6.2f} ms")
+        #     print(f"RGB Convert:       {self.timing_data['convert_rgb'] * 1000:6.2f} ms")
+        #     print(f"MediaPipe:         {self.timing_data['mediapipe'] * 1000:6.2f} ms")
+        #     print(f"Gesture Classify:  {self.timing_data['gesture_classify'] * 1000:6.2f} ms")
+        #     print(f"Actions:           {self.timing_data['actions'] * 1000:6.2f} ms")  # NEW
+        #     print(f"Drawing:           {self.timing_data['drawing'] * 1000:6.2f} ms")
+        #     print(f"Total Frame:       {self.timing_data['total'] * 1000:6.2f} ms")
+        #     print(f"FPS: {self.fps}")
 
         # Display FPS counter on frame
         cv2.putText(frame, f"FPS: {self.fps}", (10, frame.shape[0] - 10),
