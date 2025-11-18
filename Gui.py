@@ -16,8 +16,10 @@ import mediapipe as mp
 import threading
 import time
 import sys
+import traceback
 
 import pydirectinput
+
 
 # from Pi.webserver.config.paths import PROJECT_ROOT # This will be replaced
 
@@ -29,6 +31,8 @@ def resource_path(relative_path):
     except Exception:
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
+
+
 # ---------- User Settings Management (local to GUI) ----------
 
 DEFAULT_USER_SETTINGS = {
@@ -116,6 +120,7 @@ DEFAULT_USER_SETTINGS = {
     "active_preset": "default"
 }
 
+
 def get_config_path():
     """Return the platform-specific path to the PiVision config file."""
     # Windows → AppData\Roaming\PiVision
@@ -128,7 +133,9 @@ def get_config_path():
     pivision_dir.mkdir(parents=True, exist_ok=True)
     return pivision_dir / "config.json"
 
+
 SETTINGS_FILE = get_config_path()
+
 
 def load_user_settings():
     """Load settings from local JSON, or create default."""
@@ -146,6 +153,7 @@ def load_user_settings():
     save_user_settings(DEFAULT_USER_SETTINGS)
     return DEFAULT_USER_SETTINGS.copy()
 
+
 def save_user_settings(settings):
     """Save settings to local JSON."""
     try:
@@ -154,6 +162,7 @@ def save_user_settings(settings):
         print(f"[INFO] User settings saved → {SETTINGS_FILE}")
     except Exception as e:
         print(f"[ERROR] Failed to save settings: {e}")
+
 
 # ===============================================================
 # -------------------- MAIN WINDOW -------------------------------
@@ -275,7 +284,8 @@ class MainWindow(QMainWindow):
                 color: #ffffff;
             }
         """)
-    #------------ Functionality of updating JSON ---------------
+
+    # ------------ Functionality of updating JSON ---------------
     def update_gesture_mapping(self, gesture_name, action_key, action_type):
         """Update one gesture mapping and save to local JSON."""
         active_preset = self.user_settings.get("active_preset", "default")
@@ -293,6 +303,7 @@ class MainWindow(QMainWindow):
         save_user_settings(self.user_settings)
         print(f"[INFO] Updated '{gesture_name}' → {action_key}, {action_type}")
 
+
 # ===============================================================
 # -------------------- HOME PAGE --------------------------------
 # ===============================================================
@@ -307,14 +318,14 @@ class HomePage(QWidget):
         center_layout = QVBoxLayout()
         center_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         center_layout.setSpacing(20)
-        
+
         title = QLabel("PiVision Control Panel")
         title.setStyleSheet("font-size: 28px; font-weight: bold; margin-bottom: 40px;")
 
         self.start_button = QPushButton("▶ Start Gesture Recognition")
         self.settings_button = QPushButton("⚙ Settings")
         self.mapping_button = QPushButton("🎮 Gesture Mappings")
-        
+
         for btn in [self.start_button, self.settings_button, self.mapping_button]:
             btn.setFixedWidth(300)
             btn.setFixedHeight(50)
@@ -343,6 +354,7 @@ class HomePage(QWidget):
         active_preset = self.parent_window.user_settings.get("active_preset", "default")
         self.preset_label.setText(f"Active Preset: {active_preset}")
 
+
 # ===============================================================
 # -------------------- CAMERA THREAD -----------------------------
 # ===============================================================
@@ -354,6 +366,7 @@ MOVE_INTERVAL = 0
 # Keep track of held states globally for pyautogui
 active_mouse_holds = {}
 active_key_holds = {}
+
 
 def continuous_scroll(direction):
     """Scroll continuously while held."""
@@ -367,10 +380,12 @@ def continuous_scroll(direction):
             # pyautogui.scroll(-SCROLL_AMOUNT)
         time.sleep(MOVE_INTERVAL)
 
+
 def move_mouse(distance_x: int, distance_y: int):
     """One-time mouse move for per frame movements."""
     # pyautogui.moveRel(distance_x, distance_y)
     pydirectinput.moveRel(distance_x, distance_y)
+
 
 def perform_action(msg):
     parts = msg.strip().split(" ", 3)
@@ -388,7 +403,13 @@ def perform_action(msg):
         "mouse"
     ]:
         if key == "mouse":
-            move_mouse(int(parts[2]), int(parts[3]))
+            try:
+                dx = int(float(parts[2]))
+                dy = int(float(parts[3]))
+            except (ValueError, IndexError):
+                print(f"Ignoring invalid mouse move payload: {parts[2:]}")
+                return
+            move_mouse(dx, dy)
             return
 
         if key in ["scroll_up", "scroll_down"]:
@@ -455,6 +476,7 @@ def perform_action(msg):
     except Exception as e:
         print(f"Error performing action '{msg}': {e}")
 
+
 def reset_active_holds():
     """Release any held keys or mouse actions when the connection ends."""
     for key in list(active_mouse_holds.keys()):
@@ -468,6 +490,7 @@ def reset_active_holds():
             except Exception as exc:
                 print(f"Error releasing key '{key}': {exc}")
         active_key_holds[key] = False
+
 
 # --- Gesture and State Management Classes ---
 
@@ -491,6 +514,7 @@ class HandState:
         self.prev_coords = None
         self.game_coords = None
         self.holds = []
+
 
 class GestureController:
     """Manages gesture detection, state, and action dispatching."""
@@ -543,6 +567,17 @@ class GestureController:
 
         # State tracking for each hand
         self.hand_states = {'left': HandState(), 'right': HandState()}
+
+        # Performance timing
+        self.timing_enabled = True  # Set to False to disable timing output
+        self.timing_data = {
+            'flip': 0,
+            'convert_rgb': 0,
+            'mediapipe': 0,
+            'gesture_classify': 0,
+            'drawing': 0,
+            'total': 0
+        }
 
     def process_frame(self, frame: np.ndarray, hand_landmarks) -> str:
         """Process the frame and then pass it through ML model to detect gesture."""
@@ -667,11 +702,27 @@ class GestureController:
 
     def run_detection(self, frame):
         """Processes a single camera frame for gesture detection."""
+        frame_start_time = time.time()
+
+        # Timing: Frame flip
+        t0 = time.time()
         frame = cv2.flip(frame, 1)  # Flip the camera input so that right and left is correct
+        self.timing_data['flip'] = time.time() - t0
+
+        # Timing: RGB conversion (always needed for MediaPipe)
+        t0 = time.time()
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        self.timing_data['convert_rgb'] = time.time() - t0
+
+        # Timing: MediaPipe hand detection (always run for fresh hand positions)
+        t0 = time.time()
         results = self.mp_hands.process(rgb_frame)  # Find the hands in the frame
+        self.timing_data['mediapipe'] = time.time() - t0
 
         detected_hands = set()
+        gesture_classify_time = 0
+        drawing_time = 0
+
         # If there is a hand in frame
         if results.multi_hand_landmarks:
             # Loop through detected hands to recognise gesture
@@ -682,7 +733,9 @@ class GestureController:
                 state = self.hand_states[hand_label]
 
                 # Pass the frame through the ML model to get the performed gesture and probability
+                t0 = time.time()
                 label = self.process_frame(frame, hand_landmarks)
+                gesture_classify_time += time.time() - t0
 
                 # Is the currently detected gesture different from the one in the previous frame
                 # for this hand?
@@ -746,11 +799,18 @@ class GestureController:
                     state.frame_count += 1
 
                 # Drawing
+                # Timing: Drawing
+                t0 = time.time()
                 self.mp_draw.draw_landmarks(frame, hand_landmarks,
                                             mp.solutions.hands.HAND_CONNECTIONS)
                 data = {"gesture": label,
                         "confidence": 0.0}  # Confidence removed for performance
                 add_text(frame, data, hand_label)
+                drawing_time += time.time() - t0
+
+        # Store timing data
+        self.timing_data['gesture_classify'] = gesture_classify_time
+        self.timing_data['drawing'] = drawing_time
 
         # Handle hands that are no longer detected
         for hand_label in ['left', 'right']:
@@ -759,7 +819,21 @@ class GestureController:
                 if state.previous_gesture:
                     self._handle_gesture_change(state)
 
+        self.timing_data['total'] = time.time() - frame_start_time
+
+        if self.timing_enabled:
+            print(f"\n=== Frame Timing (ms) ===")
+            print(f"Flip:              {self.timing_data['flip'] * 1000:6.2f} ms")
+            print(f"RGB Convert:       {self.timing_data['convert_rgb'] * 1000:6.2f} ms")
+            print(f"MediaPipe:         {self.timing_data['mediapipe'] * 1000:6.2f} ms")
+            print(f"Gesture Classify:  {self.timing_data['gesture_classify'] * 1000:6.2f} ms")
+            print(f"Drawing:           {self.timing_data['drawing'] * 1000:6.2f} ms")
+            print(f"Total Frame:       {self.timing_data['total'] * 1000:6.2f} ms")
+            #print(f"FPS: {self.fps}")
+            print(f"Note: Frame skipping now only skips gesture classification, not hand tracking")
+
         return frame
+
 
 # Default mappings if not in config
 classes = [
@@ -769,6 +843,7 @@ classes = [
     'rock', 'stop', 'stop_inverted',
     'three', 'three2', 'two_up', 'two_up_inverted'
 ]
+
 
 # --- UI and Helper Functions ---
 
@@ -789,6 +864,7 @@ def add_text(frame: np.ndarray, gesture: dict, hand_label: str):
     # text = f"{gesture.get('gesture')}: {gesture.get('confidence', 0.0) * 100:.1f}%"
     cv2.putText(frame, text, (x_offset, yd),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
+
 
 class WebcamVideoStream:
     """A threaded wrapper for cv2.VideoCapture to improve performance."""
@@ -813,41 +889,6 @@ class WebcamVideoStream:
 
     def read(self):
         return self.frame
-
-def main():
-    """Main function to run the gesture detection loop."""
-    settings = load_user_settings()
-
-    # Initialize camera
-    print("Starting threaded video stream...")
-    vs = WebcamVideoStream(src=0).start()
-
-    if not vs.stream.isOpened():
-        print("Error: Could not open video stream.")
-        return
-
-    controller = GestureController(settings)
-    print("Gesture detection started. Press 'q' to quit.")
-
-    while True:
-        try:
-            frame = vs.read()
-            if frame is None:
-                print("Info: End of video stream.")
-                break
-
-            processed_frame = controller.run_detection(frame)
-
-            cv2.imshow("Gesture Detector + Classifier", processed_frame)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-
-        except KeyboardInterrupt:
-            print("\nStopped by user.")
-            break
-    vs.stopped = True
-    cv2.destroyAllWindows()
-    reset_active_holds()
 
 class CameraThread(QThread):
     frame_ready = Signal(np.ndarray)
@@ -880,8 +921,10 @@ class CameraThread(QThread):
 
                 processed_frame = controller.run_detection(frame)
                 self.frame_ready.emit(processed_frame)
-            except:
-                continue
+            except Exception:
+                print("Error during gesture detection. Full traceback:")
+                traceback.print_exc()  # NEW: prints file, line, and stack
+                break
 
         if self.vs:
             self.vs.stopped = True
@@ -890,6 +933,7 @@ class CameraThread(QThread):
 
     def stop(self):
         self._is_running = False
+
 
 # ===============================================================
 # -------------------- RECOGNITION PAGE --------------------------
@@ -936,7 +980,7 @@ class RecognitionPage(QWidget):
     def stop_camera(self):
         if self.thread and self.thread.isRunning():
             self.thread.stop()
-            self.thread.wait() # Wait for the thread to finish gracefully
+            self.thread.wait()  # Wait for the thread to finish gracefully
 
     def update_frame(self, frame):
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -950,6 +994,7 @@ class RecognitionPage(QWidget):
         """Reads the active preset from settings and updates the label."""
         active_preset = self.parent_window.user_settings.get("active_preset", "default")
         self.preset_label.setText(f"Active Preset: {active_preset}")
+
 
 # ===============================================================
 # -------------------- SETTINGS PAGE -----------------------------
@@ -970,9 +1015,9 @@ class SettingsPage(QWidget):
 
         # Mouse sensitivity
         self.mouse_sensitivity = QDoubleSpinBox()
-        self.mouse_sensitivity.setRange(0.1, 10.0)
-        self.mouse_sensitivity.setSingleStep(0.1)
-        form.addRow("Mouse Sensitivity (0.1 - 10.0):", self.mouse_sensitivity)
+        self.mouse_sensitivity.setRange(1, 10)
+        self.mouse_sensitivity.setSingleStep(1)
+        form.addRow("Mouse Sensitivity (1 - 10):", self.mouse_sensitivity)
 
         # Scroll speed
         self.scroll_amount = QSpinBox()
@@ -1036,7 +1081,7 @@ class SettingsPage(QWidget):
     def load_settings_from_json(self):
         """Read user settings and populate input widgets."""
         settings = self.parent_window.user_settings
-        self.mouse_sensitivity.setValue(settings.get("MOUSE_SENSITIVITY", 5))
+        self.mouse_sensitivity.setValue(int(settings.get("MOUSE_SENSITIVITY", 5)))
         self.scroll_amount.setValue(settings.get("SCROLL_AMOUNT", 100))
         self.min_hold_frames.setValue(settings.get("MIN_HOLD_FRAMES", 3))
         self.mouse_hand.setCurrentText(settings.get("MOUSE_HAND", "right"))
@@ -1093,6 +1138,7 @@ class SettingsPage(QWidget):
 
         QMessageBox.information(self, "Reverted", "Settings have been reset to default values.")
 
+
 # ===============================================================
 # -------------------- MAPPINGS PAGE -----------------------------
 # ===============================================================
@@ -1118,7 +1164,8 @@ class MappingsPage(QWidget):
         if not presets:
             presets = ["default"]
         self.preset_selector.addItems(presets)
-        self.preset_selector.setCurrentText(self.parent_window.user_settings.get("active_preset", presets[0]))
+        self.preset_selector.setCurrentText(
+            self.parent_window.user_settings.get("active_preset", presets[0]))
         self.preset_selector.currentTextChanged.connect(self.on_preset_changed)
 
         self.new_preset_button = QPushButton("New")
@@ -1130,7 +1177,7 @@ class MappingsPage(QWidget):
         self.rename_preset_button.clicked.connect(self.rename_current_preset)
 
         self.delete_preset_button = QPushButton("Delete")
-        self.delete_preset_button.setObjectName("DeleteButton") # For specific styling
+        self.delete_preset_button.setObjectName("DeleteButton")  # For specific styling
         self.delete_preset_button.setStyleSheet("padding: 5px 10px; font-size: 13px;")
         self.delete_preset_button.clicked.connect(self.delete_current_preset)
 
@@ -1160,10 +1207,10 @@ class MappingsPage(QWidget):
         self.setLayout(layout)
 
         # storage for widget refs
-        self.bind_buttons = {}     # gesture -> QPushButton (shows current binding)
-        self.duration_boxes = {}   # gesture -> QComboBox (press/hold)
-        self.mouse_buttons = {}    # gesture -> QPushButton
-        self.game_buttons = {}     # gesture -> QPushButton
+        self.bind_buttons = {}  # gesture -> QPushButton (shows current binding)
+        self.duration_boxes = {}  # gesture -> QComboBox (press/hold)
+        self.mouse_buttons = {}  # gesture -> QPushButton
+        self.game_buttons = {}  # gesture -> QPushButton
         self.listening_gesture = None  # currently listening gesture name or None
 
         # populate UI
@@ -1191,9 +1238,9 @@ class MappingsPage(QWidget):
         self.grid.addWidget(QLabel("Gesture"), 0, 0)
         self.grid.addWidget(QLabel("Binding"), 0, 1)
         self.grid.addWidget(QLabel("Mode"), 0, 2)
-        self.grid.addWidget(QLabel("Quick Assign"), 0, 3, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.grid.addWidget(QLabel("Quick Assign"), 0, 3, 1, 2,
+                            alignment=Qt.AlignmentFlag.AlignCenter)
         self.grid.addWidget(QLabel("Info"), 0, 5)
-
 
         # get current preset data
         preset_name = self.preset_selector.currentText()
@@ -1214,8 +1261,10 @@ class MappingsPage(QWidget):
             # duration combo
             mode_combo = QComboBox()
             mode_combo.addItems(["press", "hold"])
-            mode_combo.setCurrentText(current_mode if current_mode in ("press", "hold") else "press")
-            mode_combo.currentTextChanged.connect(lambda _, gesture=g: self.on_mode_changed(gesture))
+            mode_combo.setCurrentText(
+                current_mode if current_mode in ("press", "hold") else "press")
+            mode_combo.currentTextChanged.connect(
+                lambda _, gesture=g: self.on_mode_changed(gesture))
 
             # Stylesheet for the quick assign buttons
             quick_assign_style = """
@@ -1292,7 +1341,8 @@ class MappingsPage(QWidget):
 
             all_presets = self.parent_window.user_settings.get("presets", {})
             if new_name in all_presets and new_name != current_name:
-                QMessageBox.warning(self, "Name Exists", f"A preset named '{new_name}' already exists.")
+                QMessageBox.warning(self, "Name Exists",
+                                    f"A preset named '{new_name}' already exists.")
                 return
 
             # Update settings
@@ -1307,7 +1357,8 @@ class MappingsPage(QWidget):
             self.preset_selector.setCurrentText(new_name)
             self.preset_selector.blockSignals(False)
 
-            QMessageBox.information(self, "Success", f"Preset '{current_name}' was renamed to '{new_name}'.")
+            QMessageBox.information(self, "Success",
+                                    f"Preset '{current_name}' was renamed to '{new_name}'.")
 
     def delete_current_preset(self):
         """Delete the currently selected preset."""
@@ -1356,7 +1407,8 @@ class MappingsPage(QWidget):
 
             all_presets = self.parent_window.user_settings.get("presets", {})
             if new_name in all_presets:
-                QMessageBox.warning(self, "Name Exists", f"A preset named '{new_name}' already exists.")
+                QMessageBox.warning(self, "Name Exists",
+                                    f"A preset named '{new_name}' already exists.")
                 return
 
             # Create new preset by copying default and save
@@ -1396,7 +1448,8 @@ class MappingsPage(QWidget):
         """Begin listening for next key or mouse button for given gesture."""
         # if already listening something, ignore or replace
         if self.listening_gesture is not None:
-            QMessageBox.information(self, "Listening", f"Already listening for '{self.listening_gesture}'. Press a key or cancel.")
+            QMessageBox.information(self, "Listening",
+                                    f"Already listening for '{self.listening_gesture}'. Press a key or cancel.")
             return
         self.listening_gesture = gesture_name
         # update button visual
@@ -1413,7 +1466,8 @@ class MappingsPage(QWidget):
         if self.listening_gesture:
             # restore button text from current settings
             preset = self.parent_window.user_settings.get("active_preset", "default")
-            action = self.parent_window.user_settings.get("presets", {}).get(preset, {}).get(self.listening_gesture, [""])[0]
+            action = self.parent_window.user_settings.get("presets", {}).get(preset, {}).get(
+                self.listening_gesture, [""])[0]
             btn = self.bind_buttons.get(self.listening_gesture)
             if btn:
                 btn.setText(self.display_text_for_action(action))
@@ -1428,14 +1482,18 @@ class MappingsPage(QWidget):
     def on_mode_changed(self, gesture_name):
         """When press/hold changed — save mapping immediately (keep action the same)."""
         preset = self.parent_window.user_settings.get("active_preset", "default")
-        action = self.parent_window.user_settings.get("presets", {}).get(preset, {}).get(gesture_name, ["unassigned", "press"])[0]
+        action = \
+        self.parent_window.user_settings.get("presets", {}).get(preset, {}).get(gesture_name,
+                                                                                ["unassigned",
+                                                                                 "press"])[0]
         mode = self.duration_boxes[gesture_name].currentText().lower()
         # persist
         self.parent_window.update_gesture_mapping(gesture_name, action, mode)
 
     def on_quick_assign(self, gesture_name, assign_type):
         """Handle 'Mouse' or 'Game' button clicks."""
-        other_btn = self.game_buttons[gesture_name] if assign_type == "mouse" else self.mouse_buttons[gesture_name]
+        other_btn = self.game_buttons[gesture_name] if assign_type == "mouse" else \
+        self.mouse_buttons[gesture_name]
         other_btn.setChecked(False)
 
         action_key = assign_type
@@ -1449,7 +1507,10 @@ class MappingsPage(QWidget):
     def on_mode_changed(self, gesture_name):
         """When press/hold changed — save mapping immediately (keep action the same)."""
         preset = self.parent_window.user_settings.get("active_preset", "default")
-        action = self.parent_window.user_settings.get("presets", {}).get(preset, {}).get(gesture_name, ["unassigned", "press"])[0]
+        action = \
+        self.parent_window.user_settings.get("presets", {}).get(preset, {}).get(gesture_name,
+                                                                                ["unassigned",
+                                                                                 "press"])[0]
         mode = self.duration_boxes[gesture_name].currentText().lower()
         # persist
         self.parent_window.update_gesture_mapping(gesture_name, action, mode)
@@ -1486,7 +1547,8 @@ class MappingsPage(QWidget):
         self.populate_from_settings()
 
     def show_info(self, gesture):
-        QMessageBox.information(self, "Gesture Preview", f"Preview for '{gesture}' gesture (image/video to be added).")
+        QMessageBox.information(self, "Gesture Preview",
+                                f"Preview for '{gesture}' gesture (image/video to be added).")
 
     # ---------------- event filter to capture input ----------------
     def eventFilter(self, obj, event):
@@ -1589,6 +1651,7 @@ class MappingsPage(QWidget):
             except Exception:
                 pass
         super().closeEvent(ev)
+
 
 # ===============================================================
 # -------------------- MAIN ENTRY --------------------------------
