@@ -579,6 +579,11 @@ class GestureController:
             'total': 0
         }
 
+        # For FPS tracking
+        self.fps = 0
+        self.fps_start_time = time.time()
+        self.fps_frame_count = 0
+
     def process_frame(self, frame: np.ndarray, hand_landmarks) -> str:
         """Process the frame and then pass it through ML model to detect gesture."""
         h, w, _ = frame.shape
@@ -703,6 +708,12 @@ class GestureController:
     def run_detection(self, frame):
         """Processes a single camera frame for gesture detection."""
         frame_start_time = time.time()
+
+        self.fps_frame_count += 1
+        if time.time() - self.fps_start_time >= 1.0:
+            self.fps = self.fps_frame_count
+            self.fps_frame_count = 0
+            self.fps_start_time = time.time()
 
         # Timing: Frame flip
         t0 = time.time()
@@ -829,8 +840,11 @@ class GestureController:
             print(f"Gesture Classify:  {self.timing_data['gesture_classify'] * 1000:6.2f} ms")
             print(f"Drawing:           {self.timing_data['drawing'] * 1000:6.2f} ms")
             print(f"Total Frame:       {self.timing_data['total'] * 1000:6.2f} ms")
-            #print(f"FPS: {self.fps}")
-            print(f"Note: Frame skipping now only skips gesture classification, not hand tracking")
+            print(f"FPS: {self.fps}")
+
+        # Display FPS counter on frame
+        cv2.putText(frame, f"FPS: {self.fps}", (10, frame.shape[0] - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2, cv2.LINE_AA)
 
         return frame
 
